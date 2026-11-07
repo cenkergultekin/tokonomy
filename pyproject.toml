@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tokonomy"
 version = "0.2.0"
-description = "Local-first, cache-aware usage analytics for AI coding sessions"
+description = "Local token accounting for coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
