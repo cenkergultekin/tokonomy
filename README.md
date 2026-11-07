@@ -16,7 +16,7 @@ JSONL records are parsed in memory to extract allowlisted fields. Source files a
 
 ## Install
 
-Windows için repo klasöründe bir kez:
+Windows için repo klasöründe bir kez (repo içindeki `.venv` ortamına kurar):
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
