@@ -5,6 +5,10 @@ from tokonomy.models import ModelUsage, Session
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS session_context (source TEXT, session_id TEXT, project TEXT, cwd TEXT, parent_id TEXT, branch TEXT, source_file TEXT, PRIMARY KEY(source,session_id));
+CREATE TABLE IF NOT EXISTS session_events (source TEXT, session_id TEXT, line INTEGER, kind TEXT, timestamp TEXT, source_file TEXT, PRIMARY KEY(source,session_id,line,kind));
+CREATE TABLE IF NOT EXISTS source_health (source TEXT PRIMARY KEY, observed_at TEXT, status TEXT, detail TEXT);
+
 CREATE TABLE IF NOT EXISTS usage_origins (
  source TEXT, event_id TEXT, source_file TEXT, record_number INTEGER,
  PRIMARY KEY(source,event_id,source_file,record_number));

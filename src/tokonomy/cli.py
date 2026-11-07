@@ -75,6 +75,17 @@ def collect(data_dir: Path, store: Store | None = None, force: bool = False, qui
                 except (OSError, ValueError, EOFError):
                     errors += 1
             if not quiet: print(f"{label}: discovered={len(files)} scanned={scanned} changed_sessions={imported} errors={errors}")
+        from tokonomy.sources import hermes
+        from datetime import datetime, timezone
+        hermes_path = Path(os.environ.get('HERMES_HOME', Path(os.environ.get('LOCALAPPDATA',home/'AppData/Local'))/'hermes'))/'state.db'
+        try:
+            count=hermes.collect(store,hermes_path)
+            state='Imported' if hermes_path.exists() else 'Not found'
+            detail=f'{count} sessions; session totals only'
+        except (OSError, ValueError, __import__('sqlite3').Error) as error:
+            state='Unavailable'; detail=type(error).__name__
+        store.connection.execute('INSERT OR REPLACE INTO source_health VALUES (?,?,?,?)',('hermes',datetime.now(timezone.utc).isoformat(),state,detail))
+        if not quiet: print(f'Hermes: {state} / {detail}')
         if not quiet: print(f"Indexed sessions: {store.count_sessions()}")
         if not quiet: print(f"Database: {data_dir / 'tokonomy.sqlite3'}")
     finally:

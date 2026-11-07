@@ -51,7 +51,7 @@ class TokonomyApp(App):
                 Binding('right', 'next', 'Tabs', priority=True, show=False),
                 Binding('1', 'page(0)', 'Overview', show=False), Binding('2', 'page(1)', 'Sessions', show=False),
                 Binding('3', 'page(2)', 'Models', show=False), Binding('4', 'page(3)', 'History', show=False)]
-    pages = ['overview', 'sessions', 'models', 'history', 'projects']
+    pages = ['overview', 'sessions', 'models', 'history', 'projects', 'sources']
 
     def __init__(self, data_dir):
         super().__init__()
@@ -71,7 +71,7 @@ class TokonomyApp(App):
                     yield Static('', id='graphs')
                     yield DataTable(id='limits', cursor_type='row')
             with TabPane('2 Sessions', id='sessions'):
-                yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex')], value='all', allow_blank=False, id='provider-filter')
+                yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex'),('Hermes','hermes')], value='all', allow_blank=False, id='provider-filter')
                 yield Input(placeholder='Filter by provider, model or session IDâ€¦', id='search')
                 yield DataTable(id='session-table', cursor_type='row')
             with TabPane('3 Models', id='models'):
@@ -82,6 +82,8 @@ class TokonomyApp(App):
                     yield DataTable(id='history-table', cursor_type='row')
             with TabPane('5 Projects', id='projects'):
                 yield DataTable(id='projects-table', cursor_type='row')
+            with TabPane('6 Sources', id='sources'):
+                yield DataTable(id='sources-table', cursor_type='row')
         yield Static('', id='status')
         yield Footer()
 
@@ -92,6 +94,7 @@ class TokonomyApp(App):
                                ('history-table', ['Provider', 'Window', 'Used', 'Reset (UTC)', 'Observed (UTC)'])]:
             self.query_one('#'+table, DataTable).add_columns(*columns)
         self.query_one('#projects-table', DataTable).add_columns('Project', 'Sessions', 'Avg input', 'Avg output', 'Agents/session', 'Compactions')
+        self.query_one('#sources-table', DataTable).add_columns('Source', 'Sessions', 'Token events', 'Coverage')
         self.load_data()
         self.set_interval(120, self.action_reload)
 
@@ -113,6 +116,11 @@ class TokonomyApp(App):
         store = Store(self.data_dir / 'tokonomy.sqlite3')
         try:
             c = store.connection
+            health=self.query_one('#sources-table', DataTable); health.clear()
+            for source in ['codex','claude-code','hermes']:
+                sessions=c.execute('SELECT COUNT(*) FROM sessions WHERE source=?',(source,)).fetchone()[0]
+                events=c.execute('SELECT COUNT(*) FROM usage_events WHERE source=?',(source,)).fetchone()[0]
+                health.add_row(source,str(sessions),str(events),'Timestamped events' if events else 'Session totals only' if sessions else 'No imported data')
             projects=self.query_one('#projects-table', DataTable); projects.clear()
             if c.execute("SELECT 1 FROM sqlite_master WHERE name='session_context'").fetchone():
                 for r in c.execute("SELECT COALESCE(x.project,'Unknown'),COUNT(*),AVG(s.input_tokens),AVG(s.output_tokens),AVG((SELECT COUNT(*) FROM session_context child WHERE child.source=s.source AND child.parent_id=s.session_id)),SUM((SELECT COUNT(*) FROM session_events e WHERE e.source=s.source AND e.session_id=s.session_id)) FROM sessions s LEFT JOIN session_context x ON x.source=s.source AND x.session_id=s.session_id GROUP BY x.project"):
