@@ -4,6 +4,10 @@ from datetime import datetime, timezone
 from tokonomy.models import ModelUsage, Session, UsageEvent
 from tokonomy.sources.jsonl import iter_jsonl
 
+# Bump whenever extracted fields or semantics change: stored files are then
+# re-read automatically instead of silently keeping stale rows.
+PARSER_VERSION = 2
+
 
 def discover(root: Path) -> list[Path]:
     return sorted(root.rglob("*.jsonl")) if root.exists() else []

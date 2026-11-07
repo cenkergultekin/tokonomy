@@ -1,73 +1,227 @@
-# tokonomy
+﻿<div align="center">
 
-Open-source, local-first usage analytics for AI coding sessions. The first foundation scans Codex CLI and Claude Code session records and stores metadata in a local SQLite database.
+<img src="docs/cli.png" alt="tokonomy CLI dashboard" width="100%">
 
-## Current scope
+<h1>tokonomy</h1>
 
-- Read-only discovery of Codex and Claude Code session JSONL files.
-- Local SQLite index with one row per source session.
-- Exact token usage fields only. Missing source values remain `NULL`.
-- No cost values yet: client-side `cost-state` values are not treated as actual spend.
-- Codex plan type and native quota snapshots can be polled from Codex's official local app-server protocol.
-- No estimates, pricing tables, telemetry export, dashboard, or Windows background-service registration yet.
-- Transcript text, prompts, responses, tool arguments, and tool results are not stored in tokonomy's database.
+<p><strong>Local-first, cache-aware usage analytics for AI coding sessions.</strong><br>
+Know where your tokens, quota and money actually go — without uploading a single prompt.</p>
 
-JSONL records are parsed in memory to extract allowlisted fields. Source files are never modified. The database stores source file paths for traceability; these may contain local project names.
+[![CI](https://github.com/cenkergultekin/tokonomy/actions/workflows/ci.yml/badge.svg)](https://github.com/cenkergultekin/tokonomy/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/license-MIT-7ee787.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-6cb6ff.svg)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-stdio-d2a8ff.svg)](#mcp-your-agent-can-see-its-budget)
+
+</div>
+
+---
+
+AI coding agents are good at spending tokens. They are bad at telling you what they spent.
+Invoices arrive late, quota screens are per-vendor, and the biggest number on most
+dashboards — “input tokens” — is usually 95% cache reads.
+
+tokonomy reads the session records your tools already write, keeps only allowlisted
+metadata in a local SQLite database, and turns it into three things:
+
+| Layer | Question it answers | What ships |
+| --- | --- | --- |
+| **Trust** | Are these numbers honest? | Cache-inclusive vs cache-exclusive token semantics, parser versioning, per-source coverage, `NULL` instead of fake zeros, labelled estimates |
+| **Decision** | What should I do differently? | Quota burn forecast, project and model spend, weekly digest, budget checks, cache savings |
+| **Access** | How do I use it? | Terminal UI, polished localhost dashboard, static HTML export, MCP server for agents, JSON API |
+
+It is not a proxy, not a SaaS, and not another place your prompts get stored.
+
+## The dashboard
+
+<p align="center">
+  <img src="docs/dashboard.png" alt="tokonomy web dashboard" width="920">
+</p>
+
+The same page is available three ways:
+
+```powershell
+tokonomy web                 # http://127.0.0.1:8765
+tokonomy dashboard           # terminal overview
+tokonomy export report.html  # self-contained static HTML
+```
+
+Screenshots in this README use synthetic demo data, not a real person's projects.
+
+## Why cache-aware matters
+
+Codex reports `input_tokens` **including** cached tokens. Claude Code reports cached
+tokens **separately**. Add them together naively and you get a meaningless number.
+
+A real local database looked like this:
+
+| Raw “input” | Cached | Uncached input | Cache hit |
+| ---: | ---: | ---: | ---: |
+| 1.96 B | 1.92 B | 46.6 M | 97.6% |
+
+That is a 97.6% cache hit rate — good news — displayed as a two-billion-token bill by
+most tools. tokonomy makes **uncached input** the headline, keeps cache read/write
+visible, and estimates cache savings separately.
 
 ## Install
 
-Windows için repo klasöründe bir kez (repo içindeki `.venv` ortamına kurar):
+**Windows (recommended, one command):**
 
 ```powershell
+git clone https://github.com/cenkergultekin/tokonomy.git
+cd tokonomy
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 .\install.ps1
 ```
 
-Yeni bir terminal açtıktan sonra `tokonomy` yazmak yerel kullanım ekranını gösterir. Dashboard açılırken yeni/değişmiş session kayıtlarını tarar. Var olan terminalin PATH'i yenilenmediyse yeni terminal açın.
+Open a new terminal and run `tokonomy`. The installer creates a repo-local `.venv`
+and adds a launcher to your user PATH.
 
-Elle Python kurulumu:
+**Manual (any OS):**
 
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```bash
+python -m venv .venv
+. .venv/bin/activate        # Windows: .\.venv\Scripts\Activate.ps1
 python -m pip install -e .
-tokonomy scan
-tokonomy history --all
-tokonomy watch-limits --interval 120
+tokonomy scan --force
+tokonomy dashboard
 ```
 
-Terminal komutları: `tokonomy scan [--force]`, `tokonomy history [--all]` ve `tokonomy watch-limits [--interval 120]`.
+The first scan imports historical sessions and can take a minute. The database lives at
+`%LOCALAPPDATA%\tokonomy\tokonomy.sqlite3` on Windows. Override it with `--data-dir`
+or `CODEX_HOME` / `CLAUDE_CONFIG_DIR`.
 
-The default database is `%LOCALAPPDATA%\tokonomy\tokonomy.sqlite3`. `watch-limits` remains running until Ctrl+C and polls Codex's limit snapshot every 120 seconds by default (minimum 30 seconds). It also rescans only source files whose size or modification time changed. Use `--data-dir <path>` to select another database directory. Set `CODEX_HOME` or `CLAUDE_CONFIG_DIR` if either client stores sessions outside its default location.
+## What it reads
 
-## Data model
+| Source | What is imported | Token detail |
+| --- | --- | --- |
+| **Codex CLI** | rollout JSONL / JSONL.ZST | timestamped per-response usage, exact quota snapshots |
+| **Claude Code** | project JSONL + subagent transcripts | timestamped per-message usage, reconciled by message ID |
+| **Hermes** | read-only SQLite counters | session totals only |
+| **OpenCode** | read-only SQLite counters | session totals only |
+| **Cursor** | composer headers | metadata only, tokens unknown |
 
-The `sessions` table contains the source, source session ID, timestamps, and source file path. Exact token counts are stored in `model_usage` where the client exposes them. Codex per-response token deltas are also stored as timestamped `usage_events`, allowing exact local token totals for a 5-hour or 7-day interval. Claude Code's cumulative `cost-state` token snapshot is retained in session summaries; its cost value is ignored. A limit snapshot records plan type, source limit bucket, window duration, used percentage, and source reset time. On exhaustion, it also captures locally observed tokens, session count, and average tokens per session within that window. This describes local-client activity and does not include other devices or Claude.ai/ChatGPT web usage.
+Source files are opened read-only. Prompts, responses, tool arguments and tool results
+are never written to the tokonomy database. The database stores source paths for
+traceability, which may contain local project names.
 
-`tokonomy scan --force` also imports Codex's historical `token_count` rate-limit observations from local rollout files. `tokonomy history` groups them by the reset timestamp the provider recorded, shows latest/peak observed percentage and observation count per period, plus exact local Codex token deltas in that interval. `--all` shows the full available history. Historical observations have no plan type in the source records. A reset period is only listed when a source observation includes its reset timestamp; missed periods cannot be reconstructed. Current checked local history begins 2026-09-08. Claude session totals can be historical, but Claude quota/reset history is not exposed by its local structured records.
+## Commands
 
-Codex exposes this through its official local app-server method `account/rateLimits/read`; the watcher runs it with the existing Codex CLI login and saves a snapshot every poll. The `primary` and `secondary` labels are not assumed to mean 5h and 7d; the source window duration is used. Read more in [Codex usage limits](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan) and the [Codex rate-limit protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs).
+```text
+tokonomy                      interactive terminal app
+tokonomy dashboard            one-screen overview (cache-aware)
+tokonomy digest --days 7      weekly summary + burn forecast
+tokonomy forecast             quota burn rate and projected exhaustion
+tokonomy history              observed quota periods
+tokonomy web                  localhost dashboard
+tokonomy export usage.jsonl   versioned metadata export
+tokonomy export report.html   self-contained HTML dashboard
+tokonomy mcp                  MCP stdio server for coding agents
+tokonomy status --json        machine-readable status for scripts/CI
+tokonomy sources              list sources and pause/enable them
+tokonomy delete --source X --yes   delete imported data (source files untouched)
+tokonomy doctor               read-only data quality audit
+tokonomy collector start      Windows background collector
+```
 
-Claude plans can have 5-hour and weekly allowances, with plan-specific exceptions, but the official structured local telemetry/session records do not expose quota reset snapshots or plan type. tokonomy does not scrape the signed-in account UI or infer those values. See [Claude usage limits](https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work).
+### Quota burn forecast
+
+tokonomy compares recent percentage movement with the provider-reported reset time:
+
+```text
+codex 5h   89.5%   burn 9.4%/h   empties in ~1.1h, before reset (2.0h)
+codex 7d   41.3%   on track      68% projected at reset
+```
+
+Forecasts are local observations. They are marked `collecting` until enough recent
+history exists, and never pretend a reset timestamp is a new quota cycle when the
+provider jitters it.
+
+### Budget checks
+
+`tokonomy status --json` and the MCP `budget_check` tool return a machine-readable
+verdict. Prices are public list prices stored in `pricing.json` (editable in your data
+directory); every derived cost is labelled an estimate.
+
+## MCP: your agent can see its budget
+
+`tokonomy mcp` exposes eight read-only tools over stdio:
+`usage_summary`, `quota_status`, `project_breakdown`, `model_compare`,
+`recent_sessions`, `budget_check`, `coverage`, `weekly_digest`.
+
+Claude Code:
+
+```bash
+claude mcp add tokonomy -- tokonomy mcp
+```
+
+Codex (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.tokonomy]
+command = "tokonomy"
+args = ["mcp"]
+```
+
+Any MCP client:
+
+```json
+{
+  "mcpServers": {
+    "tokonomy": {
+      "command": "tokonomy",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+An agent can now ask “am I about to burn the weekly quota?” before it starts a long
+refactor, instead of after.
+
+## Data semantics
+
+tokonomy is deliberately boring about provenance:
+
+- **Missing stays missing.** Source values that are not reported remain `NULL`, not zero.
+- **Two cache models.** OpenAI-style input includes cache reads; Anthropic-style input
+  does not. The dashboard normalises both into `uncached input` and keeps the raw fields.
+- **Events over totals.** When a source has timestamped events, totals are computed from
+  events; otherwise session counters are used and labelled `session totals only`.
+- **Parser versions.** Changing a parser invalidates the scan cache, so old rows are
+  re-read instead of silently surviving a schema change.
+- **Estimates are estimates.** Cost uses a local, dated price table; it is not an invoice.
+  Unknown models remain unpriced and are reported in coverage.
+- **No content.** No prompts, responses, tool arguments or file contents.
+
+## Development
+
+```bash
+python -m pip install -e .
+python -m unittest discover -s tests -v
+python scripts/make_assets.py   # regenerate README screenshots (Chrome/Edge required)
+```
+
+CI runs the suite on Windows and Linux, Python 3.11 and 3.13.
+
+The project is Windows-first because the background collector and login startup use
+Windows APIs. The CLI, dashboard and MCP server are pure Python and run on macOS/Linux;
+a native collector for those platforms is on the roadmap.
+
+## Roadmap
+
+- [x] Cache-aware accounting and parser versioning
+- [x] Quota burn forecast and budget checks
+- [x] Localhost dashboard and static HTML export
+- [x] MCP server
+- [ ] macOS/Linux background collector
+- [ ] OpenTelemetry ingestion (opt-in)
+- [ ] More sources: Gemini/Antigravity, Copilot
+- [ ] Optional encrypted multi-machine sync (local-first, never required)
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
 
-## Collection and analysis
+---
 
-`tokonomy collector start` starts a Windows background collector independent of the terminal UI. It imports changed files and polls Codex quotas every 120 seconds. `tokonomy collector status` shows the last cycle; `tokonomy collector stop` requests shutdown. It is not registered for Windows login startup. Only one collector per database runs. SQLite uses WAL with a 30-second lock timeout.
-
-`tokonomy period --source codex --hours 5` reports recorded usage over a rolling interval, sessions opened versus sessions with usage, and the largest input contributors. This is a rolling interval, not an inferred provider quota period. Missing activity outside local logs is not reconstructed.
-
-`tokonomy group assign --name "feature-a" --source codex --session SESSION_ID` assigns an explicit work group. Reassignment moves the session; `group remove --source codex --session SESSION_ID` removes membership. `group list` summarizes groups. Assignments survive rescans. Intent similarity is not inferred from transcript contents.
-
-The Projects tab groups observed working directories by local Git common directory, combining worktrees when available. Session details (Enter) show source files, token event IDs, recorded child agents and compaction observations. Counts describe recorded events, not all possible activity. `tokonomy resets` lists quota drops; `--mark ID --reason user-credit` labels a transition as user reported, without redeeming a provider reset credit.
-
-## Source coverage
-
-Codex and Claude provide timestamped usage events. Hermes and OpenCode v2 are imported from read-only SQLite session counters; these totals are not allocated to dates or attributed to the last model as if all requests used it. Cursor imports allowlisted composer headers only: token values remain unknown. No credentials or message contents are selected by these database adapters. Sources shows imported counts and coverage. Antigravity/Gemini integration remains under investigation.
-
-Quota rows in Overview/History open a source-window report with Enter. Totals run from the reported reset minus window duration up to the selected observation, capped at reset. It distinguishes sessions opened from sessions with usage events, provides means/medians, and links contributors to session details. This is local observed coverage; reset timestamp jitter is not silently merged into inferred quota cycles.
-
-`tokonomy export usage.jsonl` exports schema-versioned session totals, timestamped events, parent relationships, compaction observations, quota snapshots and source coverage. It excludes local paths, prompts, responses and group names. Missing metrics remain null. Existing output files are never overwritten.
+<p align="center"><sub>tokonomy v0.2.0 · made for people who pay for tokens · estimates, never invoices</sub></p>

@@ -3,13 +3,15 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Header, Footer, Static, TabbedContent, TabPane, DataTable, Input, Select, Button
 from textual.containers import Horizontal, VerticalScroll
+from tokonomy import metrics
 from tokonomy.charts import analytics, activity
+from tokonomy.formatting import compact, money, pct
 from tokonomy.store import Store
 from tokonomy.orbit import TokenOrbit
 
 
 def number(value):
-    return 'â€”' if value is None else f'{value:,}'
+    return '—' if value is None else f'{value:,}'
 
 
 class TokonomyApp(App):
@@ -61,10 +63,10 @@ class TokonomyApp(App):
         yield TokenOrbit(id='brand')
         with Horizontal(id='metrics'):
             yield Static('', id='count', classes='card')
-            yield Static('', id='input', classes='card')
-            yield Static('', id='cache-read', classes='card')
-            yield Static('', id='cache-write', classes='card')
+            yield Static('', id='uncached', classes='card')
+            yield Static('', id='cache', classes='card')
             yield Static('', id='output', classes='card')
+            yield Static('', id='cost', classes='card')
         with TabbedContent(initial='overview'):
             with TabPane('1 Overview', id='overview'):
                 with VerticalScroll():
@@ -73,7 +75,7 @@ class TokonomyApp(App):
             with TabPane('2 Sessions', id='sessions'):
                 yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex'),('Hermes','hermes'),('OpenCode','opencode'),('Cursor','cursor')], value='all', allow_blank=False, id='provider-filter')
                 yield Select([('Recent activity','recent'),('Largest input','input'),('Largest output','output'),('Largest cache read','cache')],value='recent',allow_blank=False,id='sort-order')
-                yield Input(placeholder='Filter by provider, model or session IDâ€¦', id='search')
+                yield Input(placeholder='Filter by provider, model, project or session ID…', id='search')
                 yield DataTable(id='session-table', cursor_type='row')
             with TabPane('3 Models', id='models'):
                 yield DataTable(id='model-table', cursor_type='row')
@@ -91,11 +93,11 @@ class TokonomyApp(App):
 
     def on_mount(self):
         for table, columns in [('limits', ['Provider', 'Window', 'Used', 'Reset (UTC)', 'Observed (UTC)', 'State']),
-                               ('session-table', ['Provider', 'Session', 'Model', 'Input', 'Output', 'Last activity', 'Cache read', 'Cache write']),
-                               ('model-table', ['Provider', 'Model', 'Sessions', 'Input', 'Output', 'Cache read']),
+                               ('session-table', ['Provider', 'Session', 'Model', 'Uncached', 'Output', 'Last activity', 'Cache hit', 'Est. cost']),
+                               ('model-table', ['Provider', 'Model', 'Sessions', 'Uncached', 'Output', 'Cache hit', 'Est. cost']),
                                ('history-table', ['Provider', 'Window', 'Used', 'Reset (UTC)', 'Observed (UTC)'])]:
             self.query_one('#'+table, DataTable).add_columns(*columns)
-        self.query_one('#projects-table', DataTable).add_columns('Project', 'Sessions', 'Avg input', 'Avg output', 'Agents/session', 'Compactions')
+        self.query_one('#projects-table', DataTable).add_columns('Project', 'Sessions', 'Uncached', 'Output', 'Cache', 'Est. cost')
         self.query_one('#sources-table', DataTable).add_columns('Source', 'Sessions', 'Token events', 'Coverage')
         self.load_data()
         self.set_interval(120, self.action_reload)
@@ -126,21 +128,40 @@ class TokonomyApp(App):
                 coverage=(' / '.join(state)) if state else 'Timestamped events' if events else 'No imported data'
                 health.add_row(source,str(sessions),str(events),coverage)
             projects=self.query_one('#projects-table', DataTable); projects.clear()
-            if c.execute("SELECT 1 FROM sqlite_master WHERE name='session_context'").fetchone():
-                for r in c.execute("SELECT COALESCE(x.project,'Unknown'),COUNT(*),AVG(s.input_tokens),AVG(s.output_tokens),AVG((SELECT COUNT(*) FROM session_context child WHERE child.source=s.source AND child.parent_id=s.session_id)),SUM((SELECT COUNT(*) FROM session_events e WHERE e.source=s.source AND e.session_id=s.session_id)) FROM sessions s LEFT JOIN session_context x ON x.source=s.source AND x.session_id=s.session_id GROUP BY x.project"):
-                    projects.add_row(*[str(round(v,1)) if isinstance(v,float) else str(v) for v in r])
+            for p in metrics.projects(c, limit=15):
+                projects.add_row(
+                    p['project'], str(p['sessions']), compact(p['uncached']),
+                    compact(p['output']), pct(p['cache_hit']), money(p['cost']),
+                )
             self.query_one('#graphs', Static).update(analytics(c))
             self.query_one('#activity', Static).update(activity(c))
-            totals = c.execute('SELECT COUNT(*), SUM(input_tokens), SUM(cached_input_tokens), SUM(cache_write_tokens), SUM(output_tokens) FROM sessions').fetchone()
-            for key, label, value in zip(['count','input','cache-read','cache-write','output'], ['SESSIONS','INPUT','CACHE READ','CACHE WRITE','OUTPUT'], totals):
-                self.query_one('#'+key, Static).update(f'{label}\n[bold #82c783]{number(value)}[/]')
+            summary = metrics.summary(c)
+            for key, label, value in [
+                ('count', 'SESSIONS', f"{summary['sessions']:,}"),
+                ('uncached', 'UNCACHED IN', compact(summary['uncached'])),
+                ('cache', 'CACHE HIT', pct(summary['cache_hit'])),
+                ('output', 'OUTPUT', compact(summary['output'])),
+                ('cost', 'EST. SPEND', money(summary['cost'])),
+            ]:
+                self.query_one('#'+key, Static).update(f'{label}\n[bold #82c783]{value}[/]')
             self.session_projects={(r[0],r[1]):r[2] or 'Unknown' for r in c.execute('SELECT source,session_id,project FROM session_context')}
             self.session_groups={(r[0],r[1]):r[2] for r in c.execute('SELECT source,session_id,name FROM work_assignments')}
             self.session_rows = [tuple(r) for r in c.execute('SELECT source, session_id, model, input_tokens, output_tokens, last_seen_at, cached_input_tokens, cache_write_tokens FROM sessions ORDER BY last_seen_at DESC')]
+            self.session_costs = {}
+            from tokonomy import pricing
+            table = pricing.load_pricing(self.data_dir)
+            for r in c.execute('SELECT source, session_id, model, input_tokens, cached_input_tokens, cache_write_tokens, output_tokens FROM model_usage'):
+                cost = pricing.estimate(r[0], r[2], r[3], r[4], r[5], r[6], table)
+                if cost is not None:
+                    key = (r[0], r[1])
+                    self.session_costs[key] = self.session_costs.get(key, 0.0) + cost
             self.fill_sessions(self.query_one('#search', Input).value)
             table = self.query_one('#model-table', DataTable); table.clear()
-            for r in c.execute('SELECT source, model, COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cached_input_tokens) FROM model_usage GROUP BY source, model ORDER BY SUM(input_tokens) DESC'):
-                table.add_row(r[0], r[1], *[number(v) for v in r[2:]])
+            for m in metrics.model_breakdown(c)[:20]:
+                table.add_row(
+                    m['source'], m['model'], str(m['sessions']), compact(m['uncached']),
+                    compact(m['output']), pct(m['cache_hit']), money(m['cost']),
+                )
             rows = c.execute('SELECT provider, window_seconds, used_percent, resets_at, captured_at, limit_id, id FROM limit_snapshots ORDER BY captured_at DESC LIMIT 1000').fetchall()
             latest = self.query_one('#limits', DataTable); latest.clear()
             history = self.query_one('#history-table', DataTable); history.clear()
@@ -170,7 +191,11 @@ class TokonomyApp(App):
             if selected != 'all' and row[0] != selected: continue
             searchable=' '.join(str(v) for v in row)+' '+self.session_projects.get((row[0],row[1]),'')+' '+self.session_groups.get((row[0],row[1]),'')
             if text.lower() in searchable.lower():
-                table.add_row(row[0], row[1], row[2] or 'Unknown', number(row[3]), number(row[4]), row[5] or 'Unknown', number(row[6]), number(row[7]), key=row[0]+'|'+row[1])
+                uncached = metrics.uncached_input(row[0], row[3], row[6])
+                reported = (uncached or 0) + (row[6] or 0)
+                cache_hit = pct(((row[6] or 0) / reported * 100) if reported else None)
+                cost = money(self.session_costs.get((row[0], row[1])))
+                table.add_row(row[0], row[1], row[2] or 'Unknown', number(uncached), number(row[4]), row[5] or 'Unknown', cache_hit, cost, key=row[0]+'|'+row[1])
 
     def on_select_changed(self, event: Select.Changed):
         if event.select.id in ('provider-filter','sort-order') and hasattr(self, 'session_rows'):

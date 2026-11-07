@@ -5,6 +5,10 @@ from pathlib import Path
 from tokonomy.models import LimitSnapshot, ModelUsage, Session, UsageEvent
 from tokonomy.sources.jsonl import iter_jsonl
 
+# Bump whenever extracted fields or semantics change: stored files are then
+# re-read automatically instead of silently keeping stale rows.
+PARSER_VERSION = 2
+
 
 def discover(root: Path) -> list[Path]:
     return sorted([*root.rglob("*.jsonl"), *root.rglob("*.jsonl.zst")]) if root.exists() else []

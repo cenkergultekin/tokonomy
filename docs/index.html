@@ -1,0 +1,287 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="tokonomy — local-first, cache-aware usage analytics for AI coding sessions. Quota burn forecasts, project spend, MCP tools. No prompts uploaded.">
+<title>tokonomy · know where your tokens go</title>
+<style>
+:root {
+  --bg: #050807;
+  --panel: #0d1310;
+  --line: rgba(126, 231, 135, 0.16);
+  --soft: rgba(255, 255, 255, 0.07);
+  --text: #e8f1eb;
+  --muted: #93a29a;
+  --dim: #64756b;
+  --green: #7ee787;
+  --blue: #6cb6ff;
+  --amber: #f0b429;
+  --mono: "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  --sans: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background:
+    radial-gradient(900px 600px at 15% -10%, rgba(126,231,135,.15), transparent 60%),
+    radial-gradient(800px 500px at 95% 5%, rgba(108,182,255,.09), transparent 55%),
+    radial-gradient(900px 700px at 50% 110%, rgba(240,180,41,.05), transparent 60%);
+}
+a { color: var(--green); text-decoration: none; }
+a:hover { color: #fff; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 26px; }
+nav { position: sticky; top: 0; z-index: 30; backdrop-filter: blur(18px); background: rgba(5,8,7,.72); border-bottom: 1px solid var(--soft); }
+.nav-in { height: 64px; display: flex; align-items: center; gap: 24px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.02em; font-size: 17px; color: var(--text); }
+.mark { width: 27px; height: 27px; border-radius: 9px; display: grid; place-items: center; background: radial-gradient(circle at 30% 25%, #173d24, #0a110d); border: 1px solid rgba(126,231,135,.35); color: var(--green); font-size: 13px; box-shadow: 0 0 24px rgba(126,231,135,.2); }
+nav .links { margin-left: auto; display: flex; gap: 22px; align-items: center; }
+nav .links a { color: var(--muted); font-size: 13.5px; }
+nav .links a:hover { color: var(--text); }
+.pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: #c9f7cd; background: rgba(126,231,135,.06); font-size: 12px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
+.hero { padding: 86px 0 34px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 54px; align-items: center; }
+.eyebrow { color: var(--green); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 18px; }
+h1 { font-size: clamp(42px, 6vw, 74px); line-height: .98; letter-spacing: -.055em; margin: 0 0 22px; font-weight: 640; }
+h1 em { font-style: normal; color: var(--green); }
+.lede { color: var(--muted); font-size: 17px; max-width: 600px; margin: 0 0 28px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 9px; padding: 11px 17px; border-radius: 10px; font-size: 13.5px; font-weight: 600; border: 1px solid var(--soft); color: var(--text); background: rgba(255,255,255,.03); }
+.btn.primary { background: var(--green); color: #06220c; border-color: transparent; box-shadow: 0 10px 30px rgba(126,231,135,.18); }
+.btn.primary:hover { background: #a4f7aa; color: #06220c; }
+.btn:hover { border-color: var(--line); }
+.chips { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 24px; }
+.chip { border: 1px solid var(--soft); border-radius: 999px; padding: 5px 11px; color: var(--muted); font-size: 11.5px; }
+.hero-art { position: relative; }
+.hero-art::before { content: ""; position: absolute; inset: -30px; background: radial-gradient(closest-side, rgba(126,231,135,.14), transparent); filter: blur(10px); z-index: -1; }
+.window { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: #0a0f0c; box-shadow: 0 40px 100px rgba(0,0,0,.6); }
+.window .bar { height: 38px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: linear-gradient(180deg,#141b16,#0c110e); border-bottom: 1px solid var(--soft); }
+.window .bar i { width: 9px; height: 9px; border-radius: 50%; }
+.window .bar span { margin: 0 auto; color: var(--dim); font: 11px var(--mono); }
+.window img { display: block; width: 100%; height: 360px; object-fit: cover; object-position: top; }
+.hero-art .caption { margin-top: 12px; color: var(--dim); font-size: 11.5px; text-align: right; }
+.stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; border: 1px solid var(--soft); border-radius: 14px; overflow: hidden; margin: 56px 0 0; background: var(--soft); }
+.stat { background: var(--panel); padding: 22px 20px; }
+.stat .n { font-family: var(--mono); font-size: 27px; letter-spacing: -.04em; color: var(--green); }
+.stat .l { color: var(--dim); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; margin-top: 3px; }
+section { padding: 88px 0 0; scroll-margin-top: 80px; }
+.kicker { color: var(--green); font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 12px; }
+h2 { font-size: clamp(28px, 3.5vw, 42px); line-height: 1.08; letter-spacing: -.04em; margin: 0 0 14px; font-weight: 620; }
+.section-lede { color: var(--muted); max-width: 650px; margin: 0 0 28px; font-size: 15.5px; }
+.layers { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.card { background: linear-gradient(180deg, rgba(20,28,23,.9), rgba(11,16,13,.9)); border: 1px solid var(--soft); border-radius: 16px; padding: 24px; }
+.card .num { color: var(--dim); font: 11px var(--mono); letter-spacing: .12em; }
+.card h3 { font-size: 17px; margin: 16px 0 8px; letter-spacing: -.02em; }
+.card p { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; }
+.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.card li { color: var(--muted); font-size: 12.5px; padding-left: 16px; position: relative; }
+.card li::before { content: "→"; position: absolute; left: 0; color: var(--green); font-size: 11px; }
+.card.trust { border-top: 2px solid var(--green); }
+.card.decision { border-top: 2px solid var(--blue); }
+.card.access { border-top: 2px solid var(--amber); }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+.compare .card { padding: 22px; }
+.compare .label { color: var(--dim); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.compare .big { font-family: var(--mono); font-size: 36px; letter-spacing: -.04em; margin: 6px 0 4px; }
+.compare .bad { color: #ff9b93; }
+.compare .good { color: var(--green); }
+.compare .note { color: var(--muted); font-size: 12.5px; }
+.split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 34px; align-items: center; }
+.split.rev { grid-template-columns: .95fr 1.05fr; }
+.split h2 { margin-bottom: 12px; }
+.split p { color: var(--muted); font-size: 14.5px; }
+.shot { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+.shot img { display: block; width: 100%; }
+.code { background: #0a0f0c; border: 1px solid var(--soft); border-radius: 12px; overflow: hidden; margin-top: 16px; }
+.code .head { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-bottom: 1px solid var(--soft); color: var(--dim); font: 11px var(--mono); }
+.code pre { margin: 0; padding: 16px; overflow: auto; color: #cfe5d5; font: 12.5px/1.7 var(--mono); }
+.code .k { color: var(--green); }
+.code .s { color: #f0c987; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.tool { font: 11.5px var(--mono); color: var(--muted); border: 1px solid var(--soft); border-radius: 7px; padding: 4px 8px; }
+.install { margin-top: 20px; }
+.install .line { display: flex; align-items: center; gap: 10px; background: #0a0f0c; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font: 13px var(--mono); color: #d9ecdd; }
+.install .line span { color: var(--dim); }
+.install button { margin-left: auto; background: rgba(126,231,135,.08); color: var(--green); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; font: 11px var(--mono); cursor: pointer; }
+footer { margin-top: 100px; border-top: 1px solid var(--soft); padding: 28px 0 48px; color: var(--dim); font-size: 12px; }
+.foot { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .hero, .split, .split.rev { grid-template-columns: 1fr; gap: 28px; }
+  .stats { grid-template-columns: repeat(2,1fr); }
+  .layers { grid-template-columns: 1fr; }
+  nav .links a:not(.pill) { display: none; }
+  h1 { font-size: 46px; }
+}
+</style>
+</head>
+<body>
+<nav><div class="wrap nav-in">
+  <a class="brand" href="#top"><span class="mark">◍</span>tokonomy</a>
+  <div class="links">
+    <a href="#layers">Layers</a><a href="#dashboard">Dashboard</a><a href="#mcp">MCP</a><a href="#install">Install</a>
+    <a class="pill" href="https://github.com/cenkergultekin/tokonomy"><span class="dot"></span>GitHub · MIT</a>
+  </div>
+</div></nav>
+
+<div class="wrap" id="top">
+  <header class="hero">
+    <div>
+      <div class="eyebrow">Local-first · open source · cache-aware</div>
+      <h1>Know where your <em>tokens</em> go.</h1>
+      <p class="lede">AI coding agents burn tokens quietly. tokonomy reads the session files
+      already on your machine and shows the truth: uncached context, cache savings, quota burn
+      and project spend. No prompts uploaded. No account. No cloud.</p>
+      <div class="cta">
+        <a class="btn primary" href="#install">Install tokonomy</a>
+        <a class="btn" href="https://github.com/cenkergultekin/tokonomy">Star on GitHub ↗</a>
+      </div>
+      <div class="chips">
+        <span class="chip">Codex</span><span class="chip">Claude Code</span><span class="chip">Hermes</span>
+        <span class="chip">OpenCode</span><span class="chip">Cursor</span><span class="chip">MCP</span>
+      </div>
+    </div>
+    <div class="hero-art">
+      <div class="window">
+        <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>tokonomy — localhost:8765</span></div>
+        <img src="dashboard.png" alt="tokonomy dashboard">
+      </div>
+      <div class="caption">Synthetic demo data · real dashboard · 100% local</div>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="n">5</div><div class="l">sources watched</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">prompts uploaded</div></div>
+    <div class="stat"><div class="n">8</div><div class="l">MCP tools</div></div>
+    <div class="stat"><div class="n">1</div><div class="l">SQLite file</div></div>
+  </div>
+
+  <section id="layers">
+    <div class="kicker">Three layers, one tool</div>
+    <h2>Trust the number. Then act on it.</h2>
+    <p class="section-lede">Most usage dashboards are confident about the wrong metric. tokonomy separates
+    what is known from what is estimated, then gives you something to do about it.</p>
+    <div class="layers">
+      <div class="card trust">
+        <div class="num">01 / TRUST</div>
+        <h3>Honest accounting</h3>
+        <p>Source semantics are preserved, not averaged away.</p>
+        <ul>
+          <li>Codex input is cache-inclusive</li>
+          <li>Claude cached tokens are separate</li>
+          <li>Missing values stay <code>NULL</code></li>
+          <li>Parser versions force re-imports</li>
+        </ul>
+      </div>
+      <div class="card decision">
+        <div class="num">02 / DECISION</div>
+        <h3>Answers, not charts</h3>
+        <p>Every view ends in a decision you can make today.</p>
+        <ul>
+          <li>“This window empties before reset”</li>
+          <li>“This project is 60% of spend”</li>
+          <li>“Cache saved you $1.4k”</li>
+          <li>“This model is cheaper for this work”</li>
+        </ul>
+      </div>
+      <div class="card access">
+        <div class="num">03 / ACCESS</div>
+        <h3>Where you already are</h3>
+        <p>Terminal, browser, static HTML or your agent.</p>
+        <ul>
+          <li>Interactive Textual app</li>
+          <li>Localhost dashboard + HTML export</li>
+          <li>MCP stdio server</li>
+          <li>JSON status for CI budgets</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="dashboard">
+    <div class="split">
+      <div>
+        <div class="kicker">The cache trap</div>
+        <h2>The biggest number was never the bill.</h2>
+        <p>Raw input tokens include cache reads for OpenAI-style sources. A heavy Codex user
+        can show 1.96B “input” while only 46.6M tokens were actually uncached. tokonomy puts
+        the uncached number first, keeps cache visible, and estimates what caching saved.</p>
+        <div class="compare">
+          <div class="card"><div class="label">Typical dashboard</div><div class="big bad">1.96B</div>
+            <div class="note">“input tokens” · 97.6% of it was cache</div></div>
+          <div class="card"><div class="label">tokonomy</div><div class="big good">46.6M</div>
+            <div class="note">uncached input · the part that costs</div></div>
+        </div>
+      </div>
+      <div class="shot"><img src="cli.png" alt="tokonomy CLI dashboard"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="split rev">
+      <div class="shot"><img src="dashboard.png" alt="tokonomy localhost dashboard"></div>
+      <div>
+        <div class="kicker">Decision layer</div>
+        <h2>Quota before the wall.</h2>
+        <p>tokonomy watches the percentage the provider reports, measures your recent burn
+        rate, and projects where the window ends. You get “empties in ~1.1h, before reset”
+        while there is still time to switch models or stop a runaway loop.</p>
+        <p>Project and model tables answer the other half: which work is expensive, and which
+        model is doing it. Cache hit rates sit next to estimated spend, so “cheap” and
+        “efficient” stop being the same word.</p>
+        <div class="tools"><span class="tool">forecast</span><span class="tool">project spend</span>
+        <span class="tool">model compare</span><span class="tool">weekly digest</span><span class="tool">budget check</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mcp">
+    <div class="split">
+      <div>
+        <div class="kicker">Access layer</div>
+        <h2>Your agent can see its budget.</h2>
+        <p>tokonomy ships an MCP stdio server with eight read-only tools. Before a long refactor,
+        the agent can ask for quota, recent burn, project spend or a budget verdict — and change
+        its plan instead of discovering the cost later.</p>
+        <div class="tools">
+          <span class="tool">usage_summary</span><span class="tool">quota_status</span>
+          <span class="tool">project_breakdown</span><span class="tool">model_compare</span>
+          <span class="tool">recent_sessions</span><span class="tool">budget_check</span>
+          <span class="tool">coverage</span><span class="tool">weekly_digest</span>
+        </div>
+      </div>
+      <div class="code">
+        <div class="head">claude mcp add · ~/.codex/config.toml · any MCP client</div>
+        <pre><span class="k">claude</span> mcp add tokonomy -- tokonomy mcp
+
+<span class="k">[mcp_servers.tokonomy]</span>
+command = <span class="s">"tokonomy"</span>
+args = [<span class="s">"mcp"</span>]</pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="kicker">Get started</div>
+    <h2>One command. Local database.</h2>
+    <p class="section-lede">Windows installer creates an isolated environment and adds a launcher.
+    Manual install works anywhere Python 3.11+ runs; the background collector is Windows-first.</p>
+    <div class="install">
+      <div class="line"><span>PS&gt;</span> git clone https://github.com/cenkergultekin/tokonomy.git; cd tokonomy; .\install.ps1
+        <button onclick="navigator.clipboard.writeText('git clone https://github.com/cenkergultekin/tokonomy.git; cd tokonomy; .\\install.ps1')">copy</button></div>
+      <div class="line" style="margin-top:10px"><span>$</span> tokonomy scan --force &amp;&amp; tokonomy web</div>
+    </div>
+    <p style="color:var(--dim);font-size:12px;margin-top:14px">Reads session files read-only. Stores allowlisted metadata in
+    <code>%LOCALAPPDATA%\tokonomy</code>. Delete any source with <code>tokonomy delete --source codex --yes</code>.</p>
+  </section>
+</div>
+
+<footer><div class="wrap foot">
+  <div>tokonomy v0.2.0 · MIT · no telemetry · estimates, never invoices</div>
+  <div><a href="https://github.com/cenkergultekin/tokonomy">GitHub</a> · <a href="https://github.com/cenkergultekin/tokonomy/issues">Issues</a> · <a href="dashboard.html">Live demo HTML</a></div>
+</div></footer>
+</body>
+</html>

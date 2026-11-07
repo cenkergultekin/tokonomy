@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS work_assignments(source TEXT, session_id TEXT, name T
 CREATE TABLE IF NOT EXISTS session_context (source TEXT, session_id TEXT, project TEXT, cwd TEXT, parent_id TEXT, branch TEXT, source_file TEXT, PRIMARY KEY(source,session_id));
 CREATE TABLE IF NOT EXISTS session_events (source TEXT, session_id TEXT, line INTEGER, kind TEXT, timestamp TEXT, source_file TEXT, PRIMARY KEY(source,session_id,line,kind));
 CREATE TABLE IF NOT EXISTS source_health (source TEXT PRIMARY KEY, observed_at TEXT, status TEXT, detail TEXT);
+CREATE TABLE IF NOT EXISTS source_settings (source TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT);
 
 CREATE TABLE IF NOT EXISTS usage_origins (
  source TEXT, event_id TEXT, source_file TEXT, record_number INTEGER,
@@ -102,10 +103,13 @@ CREATE TABLE IF NOT EXISTS source_files (
   file_path TEXT NOT NULL,
   size_bytes INTEGER NOT NULL,
   modified_ns INTEGER NOT NULL,
+  parser_version INTEGER NOT NULL DEFAULT 1,
   scanned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (source, file_path)
 );
 """
+
+SCHEMA_VERSION = 2
 
 
 class Store:
@@ -116,6 +120,15 @@ class Store:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.executescript(SCHEMA)
+        file_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(source_files)")}
+        if "parser_version" not in file_columns:
+            self.connection.execute(
+                "ALTER TABLE source_files ADD COLUMN parser_version INTEGER NOT NULL DEFAULT 1"
+            )
+        self.connection.execute(
+            "CREATE TABLE IF NOT EXISTS source_settings (source TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT)"
+        )
+        self.connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         snapshot_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(limit_snapshots)")}
         for name, declaration in (
             ("sessions_with_usage", "INTEGER"),
@@ -260,27 +273,80 @@ class Store:
                  snapshot.average_input_tokens_per_session, snapshot.average_output_tokens_per_session),
             )
 
-    def has_scanned_file(self, source: str, path: Path) -> bool:
+    def has_scanned_file(self, source: str, path: Path, parser_version: int = 1) -> bool:
         try:
             stat = path.stat()
         except OSError:
             return False
         row = self.connection.execute(
-            "SELECT size_bytes, modified_ns FROM source_files WHERE source = ? AND file_path = ?",
+            "SELECT size_bytes, modified_ns, parser_version FROM source_files "
+            "WHERE source = ? AND file_path = ?",
             (source, str(path)),
         ).fetchone()
-        return bool(row and row["size_bytes"] == stat.st_size and row["modified_ns"] == stat.st_mtime_ns)
+        return bool(
+            row
+            and row["size_bytes"] == stat.st_size
+            and row["modified_ns"] == stat.st_mtime_ns
+            and row["parser_version"] == parser_version
+        )
 
-    def mark_file_scanned(self, source: str, path: Path) -> None:
+    def mark_file_scanned(self, source: str, path: Path, parser_version: int = 1) -> None:
         stat = path.stat()
         self.connection.execute(
-            """INSERT INTO source_files(source, file_path, size_bytes, modified_ns)
-               VALUES (?, ?, ?, ?)
+            """INSERT INTO source_files(source, file_path, size_bytes, modified_ns, parser_version)
+               VALUES (?, ?, ?, ?, ?)
                ON CONFLICT(source, file_path) DO UPDATE SET
                  size_bytes=excluded.size_bytes, modified_ns=excluded.modified_ns,
+                 parser_version=excluded.parser_version,
                  scanned_at=CURRENT_TIMESTAMP""",
-            (source, str(path), stat.st_size, stat.st_mtime_ns),
+            (source, str(path), stat.st_size, stat.st_mtime_ns, parser_version),
         )
+
+    # --- source controls -------------------------------------------------
+    def source_enabled(self, source: str) -> bool:
+        row = self.connection.execute(
+            "SELECT enabled FROM source_settings WHERE source = ?", (source,)
+        ).fetchone()
+        return True if row is None else bool(row["enabled"])
+
+    def set_source_enabled(self, source: str, enabled: bool) -> None:
+        self.connection.execute(
+            "INSERT INTO source_settings(source, enabled, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(source) DO UPDATE SET enabled=excluded.enabled, updated_at=CURRENT_TIMESTAMP",
+            (source, int(enabled)),
+        )
+        self.connection.commit()
+
+    def delete_source(self, source: str) -> dict:
+        """Delete one source's imported data without touching source files."""
+        counts = {}
+        for table in (
+            "usage_events", "model_usage", "session_context", "session_events",
+            "session_sources", "usage_origins", "sessions", "source_files",
+            "work_assignments", "source_health", "source_settings",
+        ):
+            try:
+                cursor = self.connection.execute(f"DELETE FROM {table} WHERE source = ?", (source,))
+                counts[table] = cursor.rowcount
+            except sqlite3.OperationalError:
+                continue
+        for table in ("limit_snapshots", "limit_events", "quota_transitions"):
+            try:
+                cursor = self.connection.execute(f"DELETE FROM {table} WHERE provider = ?", (source,))
+                counts[table] = cursor.rowcount
+            except sqlite3.OperationalError:
+                continue
+        self.connection.commit()
+        return counts
+
+    def delete_all(self) -> None:
+        tables = [row[0] for row in self.connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )]
+        for table in tables:
+            self.connection.execute(f"DELETE FROM {table}")
+        self.connection.commit()
+        self.connection.execute("VACUUM")
 
     def window_usage(self, source: str, window_seconds: int, captured_at: str, resets_at: str | None) -> dict:
         from datetime import datetime, timedelta
