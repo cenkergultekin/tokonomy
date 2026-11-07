@@ -24,7 +24,7 @@ tokonomy scan
 tokonomy watch-limits --interval 120
 ```
 
-The default database is `%LOCALAPPDATA%\Tokonomy\tokonomy.sqlite3`. `watch-limits` remains running until Ctrl+C and polls Codex's limit snapshot every 120 seconds by default (minimum 30 seconds). It also rescans only source files whose size or modification time changed. Use `--data-dir <path>` to select another database directory. Set `CODEX_HOME` or `CLAUDE_CONFIG_DIR` if either client stores sessions outside its default location.
+The default database is `%LOCALAPPDATA%\tokonomy\tokonomy.sqlite3`. `watch-limits` remains running until Ctrl+C and polls Codex's limit snapshot every 120 seconds by default (minimum 30 seconds). It also rescans only source files whose size or modification time changed. Use `--data-dir <path>` to select another database directory. Set `CODEX_HOME` or `CLAUDE_CONFIG_DIR` if either client stores sessions outside its default location.
 
 ## Data model
 
