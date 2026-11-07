@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tokonomy"
+version = "0.1.0"
+description = "Local-first usage analytics for AI coding sessions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["zstandard>=0.23,<1"]
+
+[project.scripts]
+tokonomy = "tokonomy.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
