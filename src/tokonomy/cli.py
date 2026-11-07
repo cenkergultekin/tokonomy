@@ -79,10 +79,14 @@ def collect(data_dir: Path, store: Store | None = None, force: bool = False, qui
         from datetime import datetime, timezone
         hermes_path = Path(os.environ.get('HERMES_HOME', Path(os.environ.get('LOCALAPPDATA',home/'AppData/Local'))/'hermes'))/'state.db'
         try:
+            store.connection.execute('SAVEPOINT hermes_import')
             count=hermes.collect(store,hermes_path)
+            store.connection.execute('RELEASE hermes_import')
             state='Imported' if hermes_path.exists() else 'Not found'
             detail=f'{count} sessions; session totals only'
         except (OSError, ValueError, __import__('sqlite3').Error) as error:
+            store.connection.execute('ROLLBACK TO hermes_import')
+            store.connection.execute('RELEASE hermes_import')
             state='Unavailable'; detail=type(error).__name__
         store.connection.execute('INSERT OR REPLACE INTO source_health VALUES (?,?,?,?)',('hermes',datetime.now(timezone.utc).isoformat(),state,detail))
         if not quiet: print(f'Hermes: {state} / {detail}')
@@ -91,15 +95,22 @@ def collect(data_dir: Path, store: Store | None = None, force: bool = False, qui
             ('opencode', home/'.local/share/opencode/opencode.db', desktop.opencode, 'Session totals only'),
             ('cursor', Path(os.environ.get('APPDATA',home/'AppData/Roaming'))/'Cursor/User/globalStorage/state.vscdb', desktop.cursor, 'Session metadata only; tokens unavailable')]:
             try:
+                store.connection.execute('SAVEPOINT desktop_import')
                 count=adapter(store,path)
+                store.connection.execute('RELEASE desktop_import')
                 state='Imported' if path.exists() else 'Not found'
                 detail=f'{count} sessions; {coverage}'
             except (OSError,ValueError,__import__('sqlite3').Error) as error:
+                store.connection.execute('ROLLBACK TO desktop_import')
+                store.connection.execute('RELEASE desktop_import')
                 state='Unavailable'; detail=type(error).__name__
             store.connection.execute('INSERT OR REPLACE INTO source_health VALUES (?,?,?,?)',(source,datetime.now(timezone.utc).isoformat(),state,detail))
             if not quiet: print(f'{source}: {state} / {detail}')
         if not quiet: print(f"Indexed sessions: {store.count_sessions()}")
         if not quiet: print(f"Database: {data_dir / 'tokonomy.sqlite3'}")
+    except Exception:
+        store.connection.rollback()
+        raise
     finally:
         if owns_store:
             store.close()
@@ -293,7 +304,19 @@ def main() -> int:
     period_parser = subparsers.add_parser('period', help='recorded usage and largest contributors')
     period_parser.add_argument('--source', choices=['codex','claude-code'], default='codex')
     period_parser.add_argument('--hours', type=int, default=24)
+    export_parser = subparsers.add_parser('export', help='export versioned usage metadata as JSONL')
+    export_parser.add_argument('path',type=Path)
     args = parser.parse_args()
+    if args.command=='export':
+        from tokonomy.exporting import export
+        store=Store(default_data_dir()/'tokonomy.sqlite3')
+        try:
+            export(store.connection,args.path)
+            print(f'Exported: {args.path}')
+        except FileExistsError:
+            parser.error('Output already exists; choose a new filename')
+        finally: store.close()
+        return 0
     if args.command == 'collector':
         from tokonomy.collector import control
         control(default_data_dir(), args.action)
