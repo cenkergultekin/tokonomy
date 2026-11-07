@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timezone
 
 from tokonomy.models import ModelUsage, Session
 from tokonomy.sources.jsonl import iter_jsonl
@@ -21,14 +22,13 @@ def read_session(path: Path) -> Session | None:
         kind = record.get("type")
         stamp = record.get("timestamp")
         if isinstance(stamp, str):
-            started_at = started_at or stamp
-            last_seen_at = stamp
+            normalized = _timestamp(stamp)
+            started_at = started_at or normalized
+            last_seen_at = normalized or last_seen_at
         if kind == "cost-state":
             start_ms = record.get("startTime")
             if isinstance(start_ms, (int, float)):
-                import datetime
-
-                started_at = datetime.datetime.fromtimestamp(start_ms / 1000, datetime.timezone.utc).isoformat()
+                started_at = datetime.fromtimestamp(start_ms / 1000, timezone.utc).isoformat()
             usage = record.get("modelUsage")
             if isinstance(usage, dict):
                 # cost-state is a cumulative snapshot; replace, do not add.
@@ -67,3 +67,15 @@ def read_session(path: Path) -> Session | None:
         source_file=str(path),
         model_usage=tuple(by_model),
     )
+
+
+def _timestamp(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).isoformat()
+    except ValueError:
+        return None

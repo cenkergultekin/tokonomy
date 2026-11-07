@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
-from tokonomy.models import ModelUsage, Session
+from tokonomy.models import ModelUsage, Session, UsageEvent
 from tokonomy.sources.jsonl import iter_jsonl
 
 
@@ -16,6 +17,8 @@ def read_session(path: Path) -> Session | None:
     totals: dict[str, int] = {}
     by_model: dict[str, dict[str, int]] = {}
     current_model = None
+    models_by_turn: dict[str, str] = {}
+    usage_events: list[UsageEvent] = []
     seen_responses: set[str] = set()
     for record in iter_jsonl(path):
         kind = record.get("type")
@@ -30,12 +33,18 @@ def read_session(path: Path) -> Session | None:
             if isinstance(value, str):
                 model = value
                 current_model = value
+                turn_id = payload.get("turn_id")
+                if isinstance(turn_id, str):
+                    models_by_turn[turn_id] = value
         elif kind == "token_usage_record":
             response_id = payload.get("response_id")
             if isinstance(response_id, str) and response_id in seen_responses:
                 continue
             if isinstance(response_id, str):
                 seen_responses.add(response_id)
+            event_time = _timestamp(record.get("timestamp"))
+            turn_id = payload.get("turn_id")
+            event_model = models_by_turn.get(turn_id, current_model) if isinstance(turn_id, str) else current_model
             # `usage` is the per-response delta. The turn/thread fields are
             # cumulative snapshots and must not be added across records.
             usage = payload.get("usage")
@@ -45,18 +54,26 @@ def read_session(path: Path) -> Session | None:
                     value = usage.get(key)
                     if isinstance(value, int) and not isinstance(value, bool):
                         totals[key] = totals.get(key, 0) + value
-                        if current_model:
-                            group = by_model.setdefault(current_model, {})
+                        if event_model:
+                            group = by_model.setdefault(event_model, {})
                             group[key] = group.get(key, 0) + value
+                if event_time and isinstance(response_id, str):
+                    usage_events.append(UsageEvent(
+                        event_id=response_id, occurred_at=event_time, model=event_model,
+                        input_tokens=usage.get("input_tokens") if isinstance(usage.get("input_tokens"), int) else None,
+                        output_tokens=usage.get("output_tokens") if isinstance(usage.get("output_tokens"), int) else None,
+                        cached_input_tokens=usage.get("cached_input_tokens") if isinstance(usage.get("cached_input_tokens"), int) else None,
+                        cache_write_tokens=usage.get("cache_write_input_tokens") if isinstance(usage.get("cache_write_input_tokens"), int) else None,
+                    ))
         stamp = record.get("timestamp")
         if isinstance(stamp, str):
-            last_seen_at = stamp
+            last_seen_at = _timestamp(stamp) or last_seen_at
     if not session_id:
         return None
     return Session(
         source="codex",
         session_id=str(session_id),
-        started_at=started_at if isinstance(started_at, str) else None,
+        started_at=_timestamp(started_at),
         last_seen_at=last_seen_at,
         model=model,
         input_tokens=totals.get("input_tokens"),
@@ -74,4 +91,17 @@ def read_session(path: Path) -> Session | None:
             )
             for name, values in by_model.items()
         ),
+        usage_events=tuple(usage_events),
     )
+
+
+def _timestamp(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).isoformat()
+    except ValueError:
+        return None

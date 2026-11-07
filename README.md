@@ -1,4 +1,4 @@
-# Tokonomy
+# tokonomy
 
 Open-source, local-first usage analytics for AI coding sessions. The first foundation scans Codex CLI and Claude Code session records and stores metadata in a local SQLite database.
 
@@ -8,8 +8,9 @@ Open-source, local-first usage analytics for AI coding sessions. The first found
 - Local SQLite index with one row per source session.
 - Exact token usage fields only. Missing source values remain `NULL`.
 - No cost values yet: client-side `cost-state` values are not treated as actual spend.
-- No estimates, pricing tables, account API calls, telemetry export, dashboard, or background watcher yet.
-- Transcript text, prompts, responses, tool arguments, and tool results are not stored in Tokonomy's database.
+- Codex plan type and native quota snapshots can be polled from Codex's official local app-server protocol.
+- No estimates, pricing tables, telemetry export, dashboard, or Windows background-service registration yet.
+- Transcript text, prompts, responses, tool arguments, and tool results are not stored in tokonomy's database.
 
 JSONL records are parsed in memory to extract allowlisted fields. Source files are never modified. The database stores source file paths for traceability; these may contain local project names.
 
@@ -20,13 +21,18 @@ py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e .
 tokonomy scan
+tokonomy watch-limits --interval 120
 ```
 
-The default database is `%LOCALAPPDATA%\Tokonomy\tokonomy.sqlite3`. Use `tokonomy scan --data-dir <path>` to select another directory. Set `CODEX_HOME` or `CLAUDE_CONFIG_DIR` if either client stores sessions outside its default location.
+The default database is `%LOCALAPPDATA%\Tokonomy\tokonomy.sqlite3`. `watch-limits` remains running until Ctrl+C and polls Codex's limit snapshot every 120 seconds by default (minimum 30 seconds). It also rescans only source files whose size or modification time changed. Use `--data-dir <path>` to select another database directory. Set `CODEX_HOME` or `CLAUDE_CONFIG_DIR` if either client stores sessions outside its default location.
 
 ## Data model
 
-The `sessions` table contains the source, source session ID, timestamps, and source file path. Exact token counts are stored in `model_usage` where the client exposes them. Codex token totals are summed from per-turn usage records; Claude Code values come from its cumulative `cost-state` snapshot and replace earlier snapshots. Costs, TPS, durations, and limits are not calculated or inferred in this foundation.
+The `sessions` table contains the source, source session ID, timestamps, and source file path. Exact token counts are stored in `model_usage` where the client exposes them. Codex per-response token deltas are also stored as timestamped `usage_events`, allowing exact local token totals for a 5-hour or 7-day interval. Claude Code's cumulative `cost-state` token snapshot is retained in session summaries; its cost value is ignored. A limit snapshot records plan type, source limit bucket, window duration, used percentage, and source reset time. On exhaustion, it also captures locally observed tokens, session count, and average tokens per session within that window. This describes local-client activity and does not include other devices or Claude.ai/ChatGPT web usage.
+
+Codex exposes this through its official local app-server method `account/rateLimits/read`; the watcher runs it with the existing Codex CLI login and saves a snapshot every poll. The `primary` and `secondary` labels are not assumed to mean 5h and 7d; the source window duration is used. Read more in [Codex usage limits](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan) and the [Codex rate-limit protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs).
+
+Claude plans can have 5-hour and weekly allowances, with plan-specific exceptions, but the official structured local telemetry/session records do not expose quota reset snapshots or plan type. tokonomy does not scrape the signed-in account UI or infer those values. See [Claude usage limits](https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work).
 
 ## License
 
