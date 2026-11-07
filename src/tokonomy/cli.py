@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tokonomy import __version__, metrics
+from tokonomy.brand import terminal_logo
 from tokonomy.formatting import compact, money, pct
 from tokonomy.providers.codex_limits import read_rate_limits
 from tokonomy.store import SCHEMA_VERSION, Store
@@ -381,9 +382,10 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
         projects = metrics.projects(store.connection, limit=5)
         width = shutil.get_terminal_size((96, 24)).columns
         _safe_print("")
-        _safe_print(_color("  ▟▛▜▙", "32"))
-        _safe_print(_color("  ▌ ▐▌", "32") + _color("   tokonomy", "1;37"))
-        _safe_print(_color("  ▜▙▟▛", "32"))
+        logo_rows = terminal_logo()
+        for index, row in enumerate(logo_rows):
+            word = _color("   tokonomy", "1;37") if index == len(logo_rows) // 2 - 1 else ""
+            _safe_print(_color("  " + row, "32") + word)
         _safe_print("")
         items = [("Sessions", f"{data['sessions']:,}"),
                  ("Uncached input", compact(data['uncached'])),

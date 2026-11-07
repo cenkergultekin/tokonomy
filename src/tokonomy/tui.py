@@ -20,7 +20,7 @@ class TokonomyApp(App):
     SUB_TITLE = ''
     CSS = """
     Screen { background: #101c26; color: #f3e9da; }
-    #brand { height: 5; padding: 1 3; color: #e5b38a; }
+    #brand { height: 10; padding: 1 3; color: #e5b38a; }
     #metrics { height: 4; margin: 0 3 1 3; }
     .card { width: 1fr; padding: 0 1; margin-right: 1; background: transparent; color: #a7bac2; }
     TabbedContent { margin: 0 2; }

@@ -104,6 +104,10 @@ def cli_markup(data_dir: Path) -> str:
         .replace(str(data_dir), "~/tokonomy")
         .rstrip()
     )
+    from tokonomy.brand import terminal_logo
+    lines = output.splitlines()
+    logo_end = 1 + len(terminal_logo())
+    output = '<span class="token-mark">' + "\n".join(lines[1:logo_end]) + '</span>\n' + "\n".join(lines[logo_end:])
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
     * {{ box-sizing: border-box; }}
     html, body {{ margin:0; }}
@@ -113,6 +117,7 @@ def cli_markup(data_dir: Path) -> str:
     .prompt {{ color:#e5b38a; font:500 14px "Cascadia Code", Consolas, monospace; margin-bottom:18px; }}
     .prompt span {{ color:#9aafb8; }}
     pre {{ margin:0; color:#f3e9da; font:14px/1.62 "Cascadia Code", "Consolas", monospace; white-space:pre; }}
+    .token-mark {{ display:inline-block; font:14px/17px "Cascadia Code", Consolas, monospace; }}
     </style></head><body>
     <div class="prompt">~/tokonomy <span>$</span> tokonomy dashboard</div>
     <pre>{output}</pre>

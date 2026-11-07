@@ -53,7 +53,7 @@ tokonomy doctor           data quality checks
 
 ## Cache accounting
 
-Codex reports cached tokens inside `input_tokens`. Claude Code reports cached tokens in separate fields. tokonomy converts both into `uncached input` and keeps the raw values. A 1.96B input total can contain 46.6M of real context.
+Codex reports cached tokens inside `input_tokens`. Claude Code reports cached tokens in separate fields. tokonomy converts both into `uncached input` and keeps the raw values. Cached tokens are still context; the split distinguishes cache reads from uncached input.
 
 Missing source values stay `NULL`. Cost is calculated from a local price table and labelled as an estimate. Quota percentages only come from provider snapshots; tokonomy does not scrape the account UI.
 

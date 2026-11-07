@@ -3,171 +3,95 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark light">
-<meta name="description" content="tokonomy reads local AI coding session files and shows uncached token usage, quota burn and project cost.">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Local session usage, cache accounting and available provider quotas for coding agents.">
 <title>tokonomy</title>
 <style>
-@font-face { font-family: "Outfit"; src: url("fonts/outfit.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
-
-:root {
-  --ink: #101c26;
-  --paper: #f3e9da;
-  --muted: #b1bfc5;
-  --line: rgba(237, 236, 230, 0.16);
-  --green: #e5b38a;
-  --green-ink: #8d472b;
-  --mono: "DM Mono", "Cascadia Code", Consolas, monospace;
+@font-face { font-family: Outfit; src: url("fonts/outfit.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+:root { --ink:#101c26; --text:#f3e9da; --muted:#b1c3c9; --accent:#e5b38a; --mono:"Cascadia Code",Consolas,monospace; }
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { margin:0; min-height:100vh; background-repeat:no-repeat; color:var(--text); font:16px/1.5 Outfit,sans-serif; -webkit-font-smoothing:antialiased;
+  background:radial-gradient(ellipse at 3% 9%,#315c62a0,transparent 36%),radial-gradient(ellipse at 100% 35%,#65443265,transparent 40%),radial-gradient(ellipse at 12% 72%,#31595c80,transparent 38%),linear-gradient(155deg,#152933,#13222b 45%,#1e3033 80%,#18232b); }
+body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:10; opacity:.045; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+a { color:inherit; text-decoration:none; }
+a:focus-visible { outline:2px solid var(--accent); outline-offset:6px; }
+.wrap { width:min(1240px,100%); margin:auto; padding-inline:48px; }
+header { padding-block:34px; }
+.word { display:inline-flex; gap:12px; align-items:center; font-weight:600; font-size:24px; letter-spacing:-.04em; }
+.word svg { width:38px; height:38px; color:var(--accent); }
+.hero { display:grid; grid-template-columns:.92fr 1.08fr; align-items:center; gap:52px; min-height:640px; padding-block:65px 80px; }
+h1,h2,p,figure { margin:0; }
+h1 { font-weight:500; font-size:clamp(56px,6.8vw,94px); line-height:1.01; letter-spacing:-.055em; }
+h1 span { color:var(--accent); }
+p { color:var(--muted); font-size:18px; max-width:36ch; }
+.hero p { margin-top:28px; }
+.hero > *, .story > *, .setup > * { min-width:0; }
+.product { position:relative; margin-right:-50px; }
+.product img { display:block; width:100%; height:530px; object-fit:cover; object-position:top; mask-image:linear-gradient(to bottom,#000 75%,transparent); }
+.story { display:grid; grid-template-columns:.9fr 1.1fr; gap:90px; align-items:center; padding-block:100px; }
+h2 { font-size:clamp(36px,4.1vw,58px); line-height:1.08; letter-spacing:-.045em; font-weight:500; max-width:14ch; }
+.story p { margin-top:22px; }
+.accounting { display:grid; gap:18px; padding:22px 0 22px 44px; }
+.accounting span { font-size:clamp(26px,3vw,42px); letter-spacing:-.035em; color:var(--muted); }
+.accounting strong { font-weight:500; color:var(--accent); }
+.accounting .total { font-size:16px; color:var(--muted); padding-top:20px; border-top:1px solid #b1c3c92b; }
+.quota { grid-template-columns:1.3fr .7fr; gap:70px; padding-block:65px 110px; }
+.terminal img { display:block; width:100%; height:auto; mask-image:linear-gradient(to bottom,#000 86%,transparent); }
+.quota h2 { max-width:10ch; }
+.setup { display:grid; grid-template-columns:.9fr 1.1fr; gap:90px; align-items:start; padding-block:100px 150px; }
+.setup-title { display:flex; align-items:center; gap:22px; }
+.setup h2 { font-size:clamp(36px,4vw,52px); }
+.download { display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; color:var(--accent); flex:none; transition:color .2s,transform .2s; }
+.download:hover { color:var(--text); transform:translateY(2px); }
+.download svg { width:26px; height:26px; }
+.setup p { margin-top:20px; font-size:16px; }
+pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font:14px/1.9 var(--mono); color:var(--text); }
+.command { color:var(--accent); }
+@media(min-width:901px) { .quota .terminal { margin-left:-32px; } }
+@media(max-width:900px) {
+ .wrap { padding-inline:26px; }
+ .hero { grid-template-columns:1fr; gap:45px; padding-block:40px 20px; }
+ .hero h1 { max-width:9ch; }
+ .hero p { max-width:36ch; }
+ .product { margin:0; }
+ .product img { height:460px; }
+ .story,.setup { grid-template-columns:1fr; gap:36px; padding-block:65px; }
+ .accounting { padding:0; }
+ .quota { gap:38px; }
+ .quota .terminal { order:2; }
+ .quota h2 { max-width:none; }
+ .setup { padding-bottom:90px; }
 }
-
-* { box-sizing: border-box; }
-.head, .hero, .split, .two { min-width: 0; }
-.hero > *, .split > *, .two > * { min-width: 0; }
-html { scroll-behavior: smooth; }
-body {
-  margin: 0;
-  background: radial-gradient(ellipse at 0% 0%, #284c55 0%, transparent 48%), radial-gradient(ellipse at 100% 38%, #45382f 0%, transparent 48%), linear-gradient(150deg, #14252e, #101923 65%, #1c292c);
-  background-attachment: fixed;
-  color: var(--paper);
-  font-family: "Outfit", "Bahnschrift", "Trebuchet MS", sans-serif;
-  font-size: 16px;
-  line-height: 1.45;
-  -webkit-font-smoothing: antialiased;
-}
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 10;
-  opacity: .055;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-a { color: inherit; text-decoration: none; }
-a:hover { color: var(--green); }
-.word svg { width: 34px; height: 34px; color: var(--green); flex-shrink: 0; }
-a:focus-visible { outline: 2px solid var(--green); outline-offset: 6px; }
-.wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
-
-header.wrap { padding-top: 26px; padding-bottom: 26px; }
-.head { display: flex; align-items: center; gap: 28px; }
-.word { display: inline-flex; align-items: center; gap: 12px; font-size: 23px; font-weight: 700; letter-spacing: -.03em; }
-.head nav { margin-left: auto; display: flex; gap: 24px; color: var(--muted); font-size: 13px; }
-.head nav a:hover { color: var(--paper); }
-
-.hero { display: grid; grid-template-columns: 1.08fr .92fr; gap: 56px; align-items: end; padding: 64px 0 0; }
-h1 { margin: 0 0 22px; font-size: clamp(52px, 6.8vw, 92px); line-height: .98; letter-spacing: -.045em; font-weight: 700; }
-h1 span { color: var(--green); }
-.lede { margin: 0; max-width: 33ch; color: #bccbd0; font-size: 17px; line-height: 1.4; }
-.lede a { border-bottom: 1px solid var(--line); }
-.shot { margin: 0; }
-.shot img { border-radius: 4px; box-shadow: 0 28px 70px #07131c50; display: block; width: 100%; height: 440px; object-fit: cover; object-position: top; }
-.shot figcaption { color: var(--muted); font-size: 11px; margin-top: 10px; letter-spacing: .02em; }
-
-section { padding: 120px 0 0; }
-.paper { background: linear-gradient(115deg, #e5d3b9, #eddfcb 45%, #c2cfc6); color: var(--ink); margin-top: 120px; padding: 96px 0; }
-.paper .muted { color: #6f6f68; }
-.paper a { border-color: rgba(38,38,38,.35); }
-
-.rule { height: 1px; background: var(--line); margin: 0 0 28px; }
-.paper .rule { background: rgba(38,38,38,.22); }
-.tag { color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 22px; }
-.paper .tag { color: #77776f; }
-h2 { margin: 0 0 20px; font-size: clamp(34px, 4.2vw, 56px); line-height: .98; letter-spacing: -.05em; font-weight: 700; }
-.body { margin: 0; max-width: 46ch; font-size: 16px; line-height: 1.5; color: #bccbd0; }
-.paper .body { color: #4b4b45; }
-
-.numbers { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 56px; }
-.number { padding: 0 28px 0 0; }
-.number + .number { border-left: 1px solid rgba(38,38,38,.22); padding-left: 28px; }
-.number b { display: block; font-size: clamp(58px, 9vw, 124px); line-height: .8; letter-spacing: -.07em; font-weight: 700; }
-.number b.accent { color: var(--green-ink); }
-.number span { display: block; margin-top: 14px; color: #6f6f68; font-size: 13px; }
-
-.split { display: grid; grid-template-columns: 1fr .9fr; gap: 64px; align-items: start; }
-.split .shot img { height: auto; max-height: none; object-fit: cover; object-position: top; }
-
-pre { margin: 0; color: #d8d7d0; font: 13px/1.65 var(--mono); white-space: pre-wrap; }
-.paper pre { color: #3d3d38; }
-.install { margin-top: 36px; padding-top: 22px; border-top: 1px solid rgba(38,38,38,.22); }
-
-footer { padding: 42px 0 56px; color: var(--muted); font-size: 12px; }
-.foot { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
-.foot nav { display: flex; gap: 20px; }
-
-@media (max-width: 900px) {
-  .hero, .split { grid-template-columns: 1fr; gap: 34px; }
-  .hero { padding-top: 28px; }
-  .shot img { height: 300px; }
-  .numbers { grid-template-columns: 1fr; gap: 40px; }
-  .number + .number { border-left: 0; padding-left: 0; border-top: 1px solid rgba(38,38,38,.22); padding-top: 32px; }
-  .head nav a:not(:last-child) { display: none; }
-}
-@media (max-width: 520px) { .wrap { padding-left: 22px; padding-right: 22px; } pre { overflow-wrap: anywhere; } .head nav { font-size: 14px; } }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .download { transition:none; } }
 </style>
 </head>
 <body>
-
-<header class="wrap">
-  <div class="head">
-    <a class="word" href="#top"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><path d="M32 4 56 18V46L32 60 8 46V18L26 7.5V23L20 26.5V39L32 46 44 39V25L32 18Z"/></svg>tokonomy</a>
-    <nav>
-      <a href="#cache">Cache</a>
-      <a href="#install">Install</a>
-    </nav>
-  </div>
-</header>
-
-<main id="top">
-  <div class="wrap hero">
-    <div>
-      <h1>AI usage,<br><span>measured locally.</span></h1>
-      <p class="lede">Reads the session files Codex and Claude Code already write. Keeps token counts, drops prompts. <a href="#install">Install</a>.</p>
-    </div>
-    <figure class="shot">
-      <img src="dashboard.png" alt="tokonomy dashboard with demo data">
-    </figure>
-  </div>
-
-  <section class="paper" id="cache">
-    <div class="wrap">
-      <h2>Cached tokens are not context.</h2>
-      <p class="body">Codex counts cache reads as input. That turns 46.6M tokens of real context into a 1.96B headline. tokonomy reads the same records and separates the two.</p>
-      <div class="numbers">
-        <div class="number"><b>1.96B</b><span>reported input</span></div>
-        <div class="number"><b class="accent">46.6M</b><span>uncached input</span></div>
-      </div>
+<header class="wrap"><a class="word" href="#top"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M60.000,32.000 59.966,33.374 59.865,34.744 59.697,36.108 59.462,37.463 59.161,38.803 58.794,40.128 58.363,41.433 57.869,42.715 57.312,43.972 56.694,45.199 56.016,46.395 55.281,47.556 54.490,48.680 53.644,49.763 52.747,50.804 51.799,51.799 50.804,52.747 49.763,53.644 48.680,54.490 47.556,55.281 46.395,56.016 45.199,56.694 43.972,57.312 42.715,57.869 41.433,58.363 40.128,58.794 38.803,59.161 37.463,59.462 36.108,59.697 34.744,59.865 33.374,59.966 32.000,60.000 30.626,59.966 29.256,59.865 27.892,59.697 26.537,59.462 25.197,59.161 23.872,58.794 22.567,58.363 21.285,57.869 20.028,57.312 18.801,56.694 17.605,56.016 16.444,55.281 15.320,54.490 14.237,53.644 13.196,52.747 12.201,51.799 11.253,50.804 10.356,49.763 9.510,48.680 8.719,47.556 7.984,46.395 7.306,45.199 6.688,43.972 6.131,42.715 5.637,41.433 5.206,40.128 4.839,38.803 4.538,37.463 4.303,36.108 4.135,34.744 4.034,33.374 4.000,32.000 4.034,30.626 4.135,29.256 4.303,27.892 4.538,26.537 4.839,25.197 5.206,23.872 5.637,22.567 6.131,21.285 6.688,20.028 7.306,18.801 7.984,17.605 8.719,16.444 9.510,15.320 10.356,14.237 11.253,13.196 12.201,12.201 13.196,11.253 14.237,10.356 15.320,9.510 16.444,8.719 17.605,7.984 18.801,7.306 20.028,6.688 21.285,6.131 22.567,5.637 23.872,5.206 25.197,4.839 26.537,4.538 27.892,4.303 29.256,4.135 30.626,4.034 32.000,4.000 33.374,4.034 34.744,4.135 36.108,4.303 37.463,4.538 38.803,4.839 40.128,5.206 41.433,5.637 42.715,6.131 43.972,6.688 45.199,7.306 46.395,7.984 47.556,8.719 48.680,9.510 49.763,10.356 50.804,11.253 51.799,12.201 52.747,13.196 53.644,14.237 54.490,15.320 55.281,16.444 56.016,17.605 56.694,18.801 57.312,20.028 57.869,21.285 58.363,22.567 58.794,23.872 59.161,25.197 59.462,26.537 59.697,27.892 59.865,29.256 59.966,30.626ZM19.000,19.000 45.000,19.000 45.000,27.000 36.000,27.000 36.000,46.000 28.000,46.000 28.000,27.000 19.000,27.000Z"/></svg>tokonomy</a></header>
+<main id="top" class="wrap">
+  <section class="hero">
+    <div><h1>Your token<br><span>usage</span></h1><p>Local session usage and available provider quotas.</p></div>
+    <figure class="product"><img src="dashboard.png" alt="Tokonomy dashboard showing demo session and quota data" width="2016" height="3171"></figure>
+  </section>
+  <section class="story" id="cache">
+    <div><h2>Cache, counted separately</h2><p>Codex includes cache reads in input. tokonomy separates them.</p></div>
+    <div class="accounting" aria-label="Codex reported input equals uncached input plus cache reads">
+      <span><strong>Uncached</strong> input</span><span><strong>Cached</strong> input</span><span class="total">Together: reported input</span>
     </div>
   </section>
-
-  <section>
-    <div class="wrap split">
-      <div>
-        <h2>Quota before reset.</h2>
-        <p class="body">tokonomy reads the provider's own reset timestamp, measures your recent burn rate, and tells you when the window will run out. If there is not enough history, it says that too.</p>
-      </div>
-      <figure class="shot">
-        <img src="cli.png" alt="tokonomy CLI quota forecast with demo data">
-      </figure>
-    </div>
+  <section class="story quota">
+    <figure class="terminal"><img src="cli.png" alt="Tokonomy terminal showing demo quota forecasts" width="2100" height="1344" loading="lazy"></figure>
+    <div><h2>Quota and reset</h2><p>Provider-reported limits. Burn estimates when enough history is available.</p></div>
   </section>
-
-  <section class="paper" id="install">
-    <div class="wrap">
-      <h2>One clone.</h2>
-      <pre>git clone https://github.com/cenkergultekin/tokonomy.git
+  <section class="setup" id="install">
+    <div><div class="setup-title"><h2>Run locally</h2><a class="download" href="https://github.com/cenkergultekin/tokonomy/archive/refs/heads/main.zip" aria-label="Download source ZIP" title="Download source ZIP"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></a></div><p>Python 3.11+ / Windows PowerShell</p></div>
+    <pre><code>git clone https://github.com/cenkergultekin/tokonomy.git
 cd tokonomy
-.\install.ps1</pre>
-      <div class="install">
-        <pre>tokonomy scan --force
-tokonomy web
-claude mcp add tokonomy -- tokonomy mcp</pre>
-      </div>
-    </div>
+.\install.ps1
+
+<span class="command">tokonomy scan --force
+tokonomy web</span></code></pre>
   </section>
 </main>
-
-
-
 </body>
 </html>
