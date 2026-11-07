@@ -111,7 +111,7 @@ def cli_markup(data_dir: Path) -> str:
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
     * {{ box-sizing: border-box; }}
     html, body {{ margin:0; }}
-    body {{ width:1500px; height:960px; background:#101c26; color:#f3e9da; padding:64px 72px; overflow:hidden; }}
+    body {{ width:1500px; height:720px; background:#101c26; color:#f3e9da; padding:58px 72px; overflow:hidden; }}
     body::after {{ content:""; position:fixed; inset:0; pointer-events:none; opacity:.05;
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }}
     .prompt {{ color:#e5b38a; font:500 14px "Cascadia Code", Consolas, monospace; margin-bottom:18px; }}
@@ -130,7 +130,7 @@ def dashboard_markup(data_dir: Path) -> str:
 
     store = Store(Path(data_dir) / "tokonomy.sqlite3")
     try:
-        return render_dashboard(store)
+        return render_dashboard(store, demo=True)
     finally:
         store.close()
 
@@ -159,14 +159,15 @@ def main() -> int:
 
         cli_page = temp / "cli.html"
         cli_page.write_text(cli_markup(demo_dir), encoding="utf-8")
-        screenshot(browser, cli_page, DOCS / "cli.png", 1500, 960, 1.4)
+        screenshot(browser, cli_page, DOCS / "cli.png", 1500, 720, 1.4)
         print("wrote docs/cli.png")
 
         dashboard_page = temp / "dashboard.html"
         dashboard_page.write_text(dashboard_markup(demo_dir), encoding="utf-8")
-        screenshot(browser, dashboard_page, DOCS / "dashboard.png", 1440, 2265, 1.4)
+        screenshot(browser, dashboard_page, DOCS / "dashboard.png", 1440, 1000, 1.4)
         (DOCS / "dashboard.html").write_text(dashboard_page.read_text(encoding="utf-8"), encoding="utf-8")
-        print("wrote docs/dashboard.png and docs/dashboard.html")
+        (DOCS / "index.html").write_text(dashboard_page.read_text(encoding="utf-8"), encoding="utf-8")
+        print("wrote docs/dashboard.png, dashboard.html and index.html")
     return 0
 
 

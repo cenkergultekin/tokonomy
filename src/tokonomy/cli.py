@@ -385,7 +385,7 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
         logo_rows = terminal_logo()
         for index, row in enumerate(logo_rows):
             word = _color("   tokonomy", "1;37") if index == len(logo_rows) // 2 - 1 else ""
-            _safe_print(_color("  " + row, "32") + word)
+            _safe_print(_color("  " + row, "38;2;229;179;138") + word)
         _safe_print("")
         items = [("Sessions", f"{data['sessions']:,}"),
                  ("Uncached input", compact(data['uncached'])),

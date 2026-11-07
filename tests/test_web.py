@@ -28,6 +28,10 @@ class WebTests(unittest.TestCase):
             self.assertIn("data:font/ttf;base64,", markup)
             self.assertNotIn(r"C:\private", markup)
             self.assertNotIn("transcript.jsonl", markup)
+            demo = render_dashboard(store, demo=True)
+            self.assertIn("Demo data", demo)
+            self.assertNotIn("Install", demo)
+            self.assertNotIn("git clone", demo)
             target = Path(directory) / "dashboard.html"
             export_html(store, target)
             self.assertIn("<!doctype html>", target.read_text(encoding="utf-8"))

@@ -1,4 +1,4 @@
-﻿"""Localhost dashboard and static HTML export.
+"""Localhost dashboard and static HTML export.
 
 A textured midnight palette keeps the data view quiet and readable.
 Every number retains its source and uncertainty.
@@ -15,142 +15,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from tokonomy import metrics
+from tokonomy import __version__, metrics
 from tokonomy.brand import LOGO
 from tokonomy.formatting import compact, money, pct, relative_reset, short_date, short_time
 
 FONT_FACE = '@font-face { font-family: "Outfit"; src: url(data:font/ttf;base64,' + base64.b64encode((Path(__file__).parent / "assets" / "outfit.ttf").read_bytes()).decode("ascii") + ') format("truetype"); font-weight: 100 900; font-display: swap; }'
 
-STYLE = FONT_FACE + """
-:root {
-  --ink: #101c26;
-  --paper: #f3e9da;
-  --muted: #b1bfc5;
-  --dim: #9aafb8;
-  --line: rgba(237, 236, 230, 0.16);
-  --line-soft: rgba(237, 236, 230, 0.09);
-  --green: #e5b38a;
-  --amber: #d6a24a;
-  --red: #d47b6a;
-  --mono: "DM Mono", "Cascadia Code", Consolas, monospace;
-}
-* { box-sizing: border-box; }
-.head, .hero, .split, .two { min-width: 0; }
-.hero > *, .split > *, .two > * { min-width: 0; }
-html { scroll-behavior: smooth; }
-body {
-  margin: 0;
-  background: radial-gradient(ellipse at 0% 0%, #284c55 0%, transparent 48%), radial-gradient(ellipse at 100% 38%, #45382f 0%, transparent 48%), linear-gradient(150deg, #14252e, #101923 65%, #1c292c);
-  background-attachment: fixed;
-  color: var(--paper);
-  font-family: "Outfit", "Bahnschrift", "Trebuchet MS", sans-serif;
-  font-size: 15px;
-  line-height: 1.45;
-  -webkit-font-smoothing: antialiased;
-}
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 20;
-  opacity: .05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-a { color: inherit; text-decoration: none; }
-a:hover { color: var(--green); }
-.word svg { width: 34px; height: 34px; color: var(--green); flex-shrink: 0; }
-a:focus-visible { outline: 2px solid var(--green); outline-offset: 6px; }
-.wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
-
-header { padding: 24px 0; border-bottom: 1px solid var(--line-soft); }
-.head { display: flex; align-items: center; gap: 30px; }
-.word { display: inline-flex; align-items: center; gap: 12px; font-size: 23px; font-weight: 700; letter-spacing: -.03em; }
-.head nav { margin-left: auto; display: flex; gap: 22px; color: var(--muted); font-size: 12px; }
-.head nav a:hover { color: var(--paper); }
-
-.topline { display: flex; justify-content: space-between; gap: 20px; padding: 28px 0 10px; color: var(--dim); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
-
-.kpis { margin-top: 44px; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.kpi { padding: 20px 22px 22px 0; }
-.kpi + .kpi { border-left: 1px solid var(--line-soft); padding-left: 22px; }
-.kpi span { display: block; color: var(--dim); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; }
-.kpi b { display: block; margin: 10px 0 3px; font-size: clamp(30px, 3.5vw, 48px); line-height: .95; letter-spacing: -.055em; font-weight: 700; font-variant-numeric: tabular-nums; }
-.kpi small { color: var(--muted); font-size: 11px; }
-.kpi .green { color: var(--green); }
-
-main { padding-bottom: 72px !important; }
-section { padding-top: 52px; scroll-margin-top: 20px; }
-.sechead { flex-wrap: wrap; display: flex; align-items: baseline; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 22px; }
-.sechead h2 { margin: 0; font-size: 20px; letter-spacing: -.035em; font-weight: 700; }
-.sechead span { color: var(--dim); font-size: 11.5px; }
-
-.chart { display: block; width: 100%; height: auto; }
-.axis { fill: var(--dim); font-size: 10px; font-family: var(--mono); }
-.legend { display: flex; gap: 22px; margin-bottom: 10px; color: var(--muted); font-size: 11.5px; }
-.legend i { display: inline-block; width: 9px; height: 2px; vertical-align: middle; margin-right: 7px; }
-
-.quotas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 56px; }
-.quota { padding: 4px 0 26px; border-bottom: 1px solid var(--line-soft); }
-.quota-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
-.quota h3 { margin: 0; font-size: 14px; font-weight: 500; }
-.quota h3 span { color: var(--dim); margin-left: 8px; }
-.quota b { font-size: 40px; line-height: .9; letter-spacing: -.055em; font-weight: 700; font-variant-numeric: tabular-nums; }
-.quota .bar { height: 2px; background: var(--line-soft); margin: 18px 0 10px; }
-.quota .bar i { display: block; height: 2px; background: var(--green); }
-.quota .bar i.warn { background: var(--amber); }
-.quota .bar i.hot { background: var(--red); }
-.quota-meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11.5px; }
-.quota p { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
-.quota p.warn { color: var(--amber); }
-.quota p.ok { color: var(--green); }
-
-.two { display: grid; grid-template-columns: 1.3fr .7fr; gap: 56px; }
-.table-scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-th { color: var(--dim); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 500; text-align: left; padding: 0 10px 8px 0; border-bottom: 1px solid var(--line); }
-td { padding: 10px 10px 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; vertical-align: baseline; }
-th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; }
-tr:last-child td { border-bottom: 0; }
-.name { font-weight: 500; }
-.sub { color: var(--dim); font-size: 11px; }
-.src { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
-
-.models { display: grid; gap: 0; }
-.model { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
-.model:last-child { border-bottom: 0; }
-.model .m { font-size: 13px; }
-.model .c { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-
-.sources { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.source { padding: 18px 20px 20px 0; }
-.source + .source { border-left: 1px solid var(--line-soft); padding-left: 20px; }
-.source .s { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 500; }
-.source .state { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; font-weight: 400; }
-.source .n { color: var(--muted); font-size: 11.5px; margin-top: 9px; }
-.source .d { color: var(--dim); font-size: 11px; margin-top: 2px; }
-.ok { color: var(--green); }
-.warn { color: var(--amber); }
-.off { color: var(--dim); }
-
-.note { color: var(--dim); font-size: 11.5px; margin-top: 18px; }
-.empty { color: var(--dim); font-size: 13px; padding: 18px 0; }
-footer { margin-top: 84px; border-top: 1px solid var(--line-soft); padding: 22px 0 44px; color: var(--dim); font-size: 11.5px; }
-.foot { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-
-@media (max-width: 900px) {
-  .kpis { grid-template-columns: repeat(2, 1fr); }
-  .kpi:nth-child(odd) { border-left: 0; padding-left: 0; }
-  .kpi + .kpi { padding-left: 18px; }
-  .quotas, .two { grid-template-columns: 1fr; gap: 36px; }
-  .sources { grid-template-columns: repeat(2, 1fr); }
-  .source + .source { border-left: 0; padding-left: 0; }
-  .head nav a:not(:last-child) { display: none; }
-}
-@media (max-width: 520px) { .wrap { padding: 0 20px; } .head nav { gap: 12px; } .kpi { padding-right: 8px; } .kpi:nth-child(odd) { padding-left: 0; } .sources { grid-template-columns: 1fr; } td, th { white-space: nowrap; } }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-@media print { body::after { display: none; } }
-"""
+STYLE = FONT_FACE + '\n:root{--paper:#eee8dd;--muted:#b1bfc5;--dim:#9bafb6;--green:#e5b38a;--amber:#e4b45f;--red:#e2907d;--line:#c5d5d51c;--line-soft:#c5d5d511;--mono:Consolas,monospace}*{box-sizing:border-box}body{margin:0;color:var(--paper);font:15px/1.5 Outfit,sans-serif;background:radial-gradient(ellipse at 12% 0,#274a5255,transparent 60%),radial-gradient(ellipse at 100% 95%,#68503c35,transparent 55%),#12212a;background-attachment:fixed}body:after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.025;z-index:30;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'160\' height=\'160\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'.8\' numOctaves=\'3\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")}\nbutton,input,select{font:inherit}button,a{color:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--green);outline-offset:4px}button{background:none;border:0}a{text-decoration:none}[hidden]{display:none!important}.rail{position:fixed;inset:0 auto 0 0;width:210px;padding:36px 24px;border-right:1px solid var(--line);background:#0b1a242b}.word{display:flex;align-items:center;gap:9px;font-size:23px;font-weight:550;letter-spacing:-.04em}.word svg{width:34px;height:34px;color:var(--green)}nav{display:flex;flex-direction:column;gap:12px;margin-top:58px}nav button{text-align:left;padding:10px 14px;color:var(--dim);border-left:2px solid transparent}nav button[aria-current=page]{color:var(--green);border-color:var(--green);background:linear-gradient(90deg,#e5b38a0b,transparent)}main{margin-left:210px;padding:34px 48px 60px;max-width:1750px}.toolbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:40px}h1{font-size:30px;font-weight:450;letter-spacing:-.04em;margin:0}.tools{display:flex;align-items:center;gap:18px}.tools button{padding:8px;color:var(--dim)}.tools svg{width:20px;height:20px}.mode,#status{font-size:12px;color:var(--dim)}.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:25px;padding-bottom:35px;border-bottom:1px solid var(--line)}.kpi span{display:block;color:var(--dim);font-size:13px}.kpi b{display:block;font-size:clamp(28px,3vw,44px);font-weight:450;letter-spacing:-.055em;margin:6px 0;font-variant-numeric:tabular-nums;line-height:1.15}.kpi small{font-size:12px;color:var(--dim)}.green,.ok{color:var(--green)}.warn{color:var(--amber)}.off{color:var(--dim)}section{padding-top:32px}.sechead{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:24px}h2{font-size:20px;font-weight:450;letter-spacing:-.025em;margin:0}.sechead span,.note{font-size:12px;color:var(--dim)}.chart{display:block;width:100%;height:auto;max-height:260px}.axis{fill:var(--dim);font-size:11px;font-family:var(--mono)}.quotas{display:grid;grid-template-columns:1fr 1fr;gap:44px}.quota{padding:18px 0}.quota-top{display:flex;justify-content:space-between;align-items:center;gap:15px}.quota h3{margin:0;font-size:15px;font-weight:450}.quota h3 span{color:var(--dim);margin-left:12px}.quota b{font-size:36px;font-weight:450;letter-spacing:-.04em}.bar{height:3px;background:var(--line);margin:18px 0 12px}.bar i{display:block;height:3px;background:var(--green)}.bar i.warn{background:var(--amber)}.bar i.hot{background:var(--red)}.quota-meta{display:flex;justify-content:space-between;color:var(--dim);font-size:12px}.quota p{font-size:12px}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th{text-align:left;color:var(--dim);font-size:12px;font-weight:400;padding:12px 16px 12px 0;border-bottom:1px solid var(--line)}td{font-size:14px;padding:16px 16px 16px 0;border-bottom:1px solid var(--line-soft)}.num{text-align:right;font-variant-numeric:tabular-nums}.sub{color:var(--dim);font-size:12px}.src{color:var(--muted);font-size:12px}.session-link{text-align:left;padding:0;color:var(--paper)}.session-link:hover{color:var(--green)}.filters{display:flex;gap:16px;margin-bottom:25px;flex-wrap:wrap}input,select{border:0;border-bottom:1px solid var(--line);background:#152730;color:var(--paper);padding:10px 12px;border-radius:0}input{flex:1;min-width:150px}.models{display:grid;grid-template-columns:repeat(2,1fr);gap:0 50px}.model{display:flex;justify-content:space-between;gap:20px;padding:18px 0;border-bottom:1px solid var(--line)}.model .c{color:var(--green)}.sources{display:grid;gap:20px}.source{padding:20px 0;border-bottom:1px solid var(--line)}.source .s{display:flex;justify-content:space-between}.source .n,.source .d{font-size:13px;color:var(--dim);margin-top:8px}.empty{padding:20px 0;color:var(--dim)}dialog{background:#182c35;color:var(--paper);border:1px solid #39505a;padding:30px;width:min(580px,calc(100% - 32px));max-height:85vh}dialog::backdrop{background:#061119aa}dialog button{float:right;font-size:22px}dl{display:grid;grid-template-columns:130px 1fr;gap:12px}dt{color:var(--dim)}dd{margin:0;overflow-wrap:anywhere}#session-count{font-size:12px;color:var(--dim);margin-top:18px}\n@media(max-width:1000px){.rail{width:165px;padding-inline:14px}main{margin-left:165px;padding:28px}.word{font-size:20px}.kpis{grid-template-columns:repeat(3,1fr)}.quotas,.models{grid-template-columns:1fr;gap:20px}}\n@media(max-width:650px){.rail{position:static;width:auto;padding:20px;border-right:0}.word{font-size:23px}nav{flex-direction:row;gap:15px;overflow:auto;margin-top:22px}nav button{white-space:nowrap;padding:8px 0;border-left:0;border-bottom:2px solid transparent}main{margin:0;padding:20px}.toolbar{margin-bottom:28px}.kpis{grid-template-columns:repeat(2,1fr);gap:25px}.kpi b{font-size:35px}.filters{gap:10px}.filters select{max-width:100%}.tools{gap:8px}.sechead{flex-direction:column;align-items:flex-start;gap:6px}.sechead span{white-space:normal}.chart{min-height:150px}td,th{white-space:nowrap}dl{grid-template-columns:1fr;gap:6px}dd{margin-bottom:10px}.mode{display:none}}\n'
 
 
 def _esc(value) -> str:
@@ -174,7 +45,7 @@ def _chart(days: list[dict]) -> str:
 
     uncached = [(x(i), y(row["uncached"] or 0)) for i, row in enumerate(days)]
     if not any(values):
-        return '<div class="empty">No dated usage yet. Run tokonomy scan --force.</div>'
+        return '<div class="empty">No dated usage yet.</div>'
     baseline = top + inner_h
     area = (
         f"M {uncached[0][0]:.1f} {baseline:.1f} "
@@ -254,7 +125,7 @@ def _projects(projects: list[dict]) -> str:
     if not projects:
         return '<tr><td colspan="6" class="empty">No project attribution.</td></tr>'
     rows = []
-    for item in projects[:6]:
+    for item in projects:
         rows.append(
             "<tr>"
             f'<td><div class="name">{_esc(item["project"])}</div><div class="sub">{_esc(", ".join(item["sources"]))}</div></td>'
@@ -273,7 +144,7 @@ def _models(models: list[dict]) -> str:
     if not models:
         return '<div class="empty">No model usage.</div>'
     rows = []
-    for item in models[:6]:
+    for item in models:
         rows.append(
             f'<div class="model"><div class="m">{_esc(item["model"])}<div class="sub">{_esc(item["source"])} · {item["sessions"]:,} sessions</div></div>'
             f'<div class="c">{_esc(money(item["cost"]))}</div></div>'
@@ -312,77 +183,36 @@ def _sources(sources: list[dict]) -> str:
     return "".join(rows)
 
 
-def render_dashboard(store, generated_at: datetime | None = None) -> str:
+SCRIPT = '\nconst sessions=JSON.parse(document.querySelector(\'#session-data\').textContent);let visible=sessions;\nconst $=s=>document.querySelector(s);const num=n=>n==null?\'Unknown\':new Intl.NumberFormat(\'en\',{notation:\'compact\',maximumFractionDigits:2}).format(n);const cost=n=>n==null?\'Unknown\':\'$\'+n.toFixed(2);\nfunction show(page){if(!document.querySelector(\'[data-panel="\'+page+\'"]\'))page=\'overview\';document.querySelectorAll(\'[data-panel]\').forEach(p=>p.hidden=p.dataset.panel!==page);document.querySelectorAll(\'[data-page]\').forEach(b=>b.setAttribute(\'aria-current\',b.dataset.page===page?\'page\':\'false\'));$(\'#page-title\').textContent=page.charAt(0).toUpperCase()+page.slice(1)}\ndocument.querySelectorAll(\'[data-page]\').forEach(b=>b.onclick=()=>{location.hash=b.dataset.page});window.addEventListener(\'hashchange\',()=>show(location.hash.slice(1)));show(location.hash.slice(1));\nfunction detail(row){$(\'#detail-fields\').replaceChildren();for(const [key,label] of [[\'project\',\'Project\'],[\'session_id\',\'Session\'],[\'source\',\'Provider\'],[\'model\',\'Model\'],[\'started_at\',\'Started\'],[\'last_seen_at\',\'Last activity\'],[\'uncached\',\'Uncached input\'],[\'cached\',\'Cache reads\'],[\'output\',\'Output\'],[\'cost\',\'Est. cost\']]){const dt=document.createElement(\'dt\'),dd=document.createElement(\'dd\');dt.textContent=label;dd.textContent=row[key]==null?\'Unknown\':key===\'cost\'?cost(row[key]):String(row[key]);$(\'#detail-fields\').append(dt,dd)}$(\'#detail\').showModal()}\nfunction render(){const q=$(\'#search\').value.toLowerCase(),provider=$(\'#provider\').value,sort=$(\'#sort\').value;visible=sessions.filter(r=>(!provider||r.source===provider)&&[r.project,r.session_id,r.model,r.source].join(\' \').toLowerCase().includes(q));if(sort!==\'recent\')visible.sort((a,b)=>(b[sort]??-1)-(a[sort]??-1));const target=$(\'#session-rows\');target.replaceChildren();for(const row of visible){const tr=document.createElement(\'tr\'),first=document.createElement(\'td\'),button=document.createElement(\'button\');button.className=\'session-link\';button.textContent=row.project||row.session_id;button.onclick=()=>detail(row);const sub=document.createElement(\'div\');sub.className=\'sub\';sub.textContent=row.session_id.slice(0,22);first.append(button,sub);tr.append(first);for(const [index,value] of [row.source,row.model||\'Unknown\',num(row.uncached),num(row.output),cost(row.cost)].entries()){const td=document.createElement(\'td\');td.textContent=value;if(index>1)td.className=\'num\';tr.append(td)}target.append(tr)}$(\'#session-count\').textContent=visible.length+\' sessions\';if(!visible.length){const tr=document.createElement(\'tr\'),td=document.createElement(\'td\');td.colSpan=6;td.className=\'empty\';td.textContent=\'No matching sessions\';tr.append(td);target.append(tr)}}\n$(\'#search\').oninput=render;$(\'#provider\').onchange=render;$(\'#sort\').onchange=render;$(\'#close-detail\').onclick=()=>$(\'#detail\').close();render();\n$(\'#export\').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(visible,null,2)],{type:\'application/json\'}));const a=document.createElement(\'a\');a.href=url;a.download=\'tokonomy-sessions.json\';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};\nconst refresh=$(\'#refresh\');if(refresh)refresh.onclick=async()=>{refresh.disabled=true;$(\'#status\').textContent=\'Refreshing\';try{const response=await fetch(\'/?scan=1\');if(!response.ok)throw Error();location.reload()}catch{$(\'#status\').textContent=\'Refresh failed\';refresh.disabled=false}};\n'
+
+def render_dashboard(store, generated_at: datetime | None = None, live: bool = False, demo: bool = False) -> str:
     generated_at = generated_at or datetime.now(timezone.utc)
     connection = store.connection
     data = metrics.summary(connection)
-    days = metrics.daily(connection, 30)
-    quotas = metrics.quota(connection)
-    projects = metrics.projects(connection, limit=6)
-    models = metrics.model_breakdown(connection)
-    sessions_list = metrics.recent_sessions(connection, limit=6)
+    sessions_list = metrics.recent_sessions(connection, limit=-1)
+    projects = metrics.projects(connection, limit=max(1, data["sessions"]))
     coverage = metrics.coverage(connection)
-    quota_markup = "".join(_quota(item) for item in quotas) or '<div class="empty">No quota snapshots. Run tokonomy watch-limits.</div>'
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<title>tokonomy</title>
-<style>{STYLE}</style>
-</head>
-<body>
-<header><div class="wrap head">
-  <a class="word" href="/">{LOGO}tokonomy</a>
-  <nav><a href="#activity">Activity</a><a href="#quota">Quota</a><a href="#projects">Projects</a><a href="#sessions">Sessions</a><a href="#sources">Sources</a></nav>
-</div></header>
-<main class="wrap">
-  <div class="kpis">
-    <div class="kpi"><span>Sessions</span><b>{data["sessions"]:,}</b><small>{len(data["sources"])} sources</small></div>
-    <div class="kpi"><span>Uncached input</span><b class="green">{compact(data["uncached"])}</b></div>
-    <div class="kpi"><span>Cache hit</span><b>{pct(data["cache_hit"])}</b><small>{compact(data["cached"])} cached</small></div>
-    <div class="kpi"><span>Output</span><b>{compact(data["output"])}</b></div>
-    <div class="kpi"><span>Est. spend</span><b>{money(data["cost"])}</b><small>{pct(data["cost_coverage"])} priceable</small></div>
-  </div>
-
-  <section id="activity">
-    <div class="sechead"><h2>Activity</h2><span>30 days / UTC / uncached input</span></div>
-    {_chart(days)}
-  </section>
-
-  <section id="quota">
-    <div class="sechead"><h2>Quota</h2></div>
-    <div class="quotas">{quota_markup}</div>
-  </section>
-
-  <section id="projects" class="two">
-    <div>
-      <div class="sechead"><h2>Projects</h2></div>
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Usage table"><table><thead><tr><th>Project</th><th class="num">Sessions</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Cache</th><th class="num">Est.</th></tr></thead>
-      <tbody>{_projects(projects)}</tbody></table></div>
-    </div>
-    <div>
-      <div class="sechead"><h2>Models</h2></div>
-      {_models(models)}
-    </div>
-  </section>
-
-  <section id="sessions">
-    <div class="sechead"><h2>Sessions</h2></div>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="Usage table"><table><thead><tr><th>Source</th><th>Session</th><th>Model</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Est.</th></tr></thead>
-    <tbody>{_sessions(sessions_list)}</tbody></table></div>
-  </section>
-
-  <section id="sources">
-    <div class="sechead"><h2>Sources</h2></div>
-    <div class="sources">{_sources(coverage["sources"])}</div>
-    <p class="note">Missing values stay empty. Cost uses local list prices, not invoices. Event sources: {_esc(", ".join(coverage["event_sources"])) or "none"}.</p>
-  </section>
-</main>
-
-</body>
-</html>"""
+    quotas = "".join(_quota(item) for item in metrics.quota(connection)) or '<div class="empty">No quota snapshots.</div>'
+    payload = json.dumps(sessions_list, ensure_ascii=False).replace("<", "\\u003c")
+    mode = "Demo data" if demo else "" if live else "Snapshot"
+    refresh = '<button id="refresh" aria-label="Refresh local data" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7v5h-5M4 17v-5h5M19 11a7 7 0 0 0-12-5M5 13a7 7 0 0 0 12 5"/></svg></button>' if live else ''
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>tokonomy</title><style>{STYLE}</style></head><body>
+<aside class="rail"><a class="word" href="#overview">{LOGO}tokonomy</a><nav aria-label="Views">{''.join(f'<button data-page="{key}" aria-current="{ "page" if key == "overview" else "false" }">{label}</button>' for key,label in [('overview','Overview'),('sessions','Sessions'),('projects','Projects'),('models','Models'),('sources','Sources')])}</nav></aside>
+<main><div class="toolbar"><h1 id="page-title">Overview</h1><div class="tools"><span class="mode">{mode}</span><span id="status" role="status"></span>{refresh}<button id="export" aria-label="Export displayed session data" title="Export sessions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></button></div></div>
+<div data-panel="overview"><div class="kpis">
+<div class="kpi"><span>Sessions</span><b>{data['sessions']:,}</b><small>{len(data['sources'])} sources</small></div>
+<div class="kpi"><span>Uncached input</span><b class="green">{compact(data['uncached'])}</b></div>
+<div class="kpi"><span>Cache hit</span><b>{pct(data['cache_hit'])}</b><small>{compact(data['cached'])} cached</small></div>
+<div class="kpi"><span>Output</span><b>{compact(data['output'])}</b></div>
+<div class="kpi"><span>Est. spend</span><b>{money(data['cost'])}</b><small>{pct(data['cost_coverage'])} priceable</small></div></div>
+<section><div class="sechead"><h2>Activity</h2><span>Uncached input / 30 days / UTC</span></div>{_chart(metrics.daily(connection,30))}</section>
+<section><div class="sechead"><h2>Quota</h2></div><div class="quotas">{quotas}</div></section></div>
+<div data-panel="sessions" hidden><div class="filters"><input id="search" type="search" aria-label="Search sessions" placeholder="Search sessions"><select id="provider" aria-label="Provider"><option value="">All providers</option>{''.join(f'<option>{_esc(x)}</option>' for x in sorted({r['source'] for r in sessions_list}))}</select><select id="sort" aria-label="Sort sessions"><option value="recent">Recent activity</option><option value="uncached">Uncached input</option><option value="output">Output</option><option value="cost">Estimated cost</option></select></div><div class="table-scroll"><table><thead><tr><th>Project / session</th><th>Provider</th><th>Model</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Est. cost</th></tr></thead><tbody id="session-rows"></tbody></table></div><div id="session-count" role="status"></div></div>
+<div data-panel="projects" hidden><div class="table-scroll"><table><thead><tr><th>Project</th><th class="num">Sessions</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Cache</th><th class="num">Est. cost</th></tr></thead><tbody>{_projects(projects)}</tbody></table></div></div>
+<div data-panel="models" hidden>{_models(metrics.model_breakdown(connection))}</div>
+<div data-panel="sources" hidden><div class="sources">{_sources(coverage['sources'])}</div><p class="note">Costs are estimates from local list prices. Missing values remain unknown.</p></div>
+</main><dialog id="detail" aria-labelledby="detail-title"><button aria-label="Close session details" id="close-detail">×</button><h2 id="detail-title">Session</h2><dl id="detail-fields"></dl></dialog>
+<script id="session-data" type="application/json">{payload}</script><script>{SCRIPT}</script></body></html>"""
 
 
 def export_html(store, path: Path) -> None:
@@ -435,7 +265,7 @@ def serve(data_dir: Path, port: int = 8765, open_browser: bool = True) -> int:
                         body = json.dumps(payload, default=str).encode("utf-8")
                         content_type = "application/json"
                     else:
-                        body = render_dashboard(store).encode("utf-8")
+                        body = render_dashboard(store, live=True).encode("utf-8")
                         content_type = "text/html; charset=utf-8"
                 finally:
                     store.close()
