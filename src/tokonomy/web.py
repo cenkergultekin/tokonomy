@@ -1,4 +1,4 @@
-"""Localhost dashboard and static HTML export.
+﻿"""Localhost dashboard and static HTML export.
 
 The page is a data view, not a landing page: flat charcoal, one accent, no
 cards, no gradients, no marketing copy. Every number carries its source.
@@ -244,7 +244,7 @@ def _projects(projects: list[dict]) -> str:
     if not projects:
         return '<tr><td colspan="6" class="empty">No project attribution.</td></tr>'
     rows = []
-    for item in projects[:10]:
+    for item in projects[:6]:
         rows.append(
             "<tr>"
             f'<td><div class="name">{_esc(item["project"])}</div><div class="sub">{_esc(", ".join(item["sources"]))}</div></td>'
@@ -259,10 +259,11 @@ def _projects(projects: list[dict]) -> str:
 
 
 def _models(models: list[dict]) -> str:
+    models = [item for item in models if (item["uncached"] or 0) + (item["output"] or 0) > 0]
     if not models:
         return '<div class="empty">No model usage.</div>'
     rows = []
-    for item in models[:8]:
+    for item in models[:6]:
         rows.append(
             f'<div class="model"><div class="m">{_esc(item["model"])}<div class="sub">{_esc(item["source"])} · {item["sessions"]:,} sessions</div></div>'
             f'<div class="c">{_esc(money(item["cost"]))}</div></div>'
@@ -274,7 +275,7 @@ def _sessions(sessions: list[dict]) -> str:
     if not sessions:
         return '<tr><td colspan="6" class="empty">No sessions.</td></tr>'
     rows = []
-    for item in sessions[:10]:
+    for item in sessions[:6]:
         rows.append(
             "<tr>"
             f'<td class="src">{_esc(item["source"])}</td>'
@@ -307,9 +308,9 @@ def render_dashboard(store, generated_at: datetime | None = None) -> str:
     data = metrics.summary(connection)
     days = metrics.daily(connection, 30)
     quotas = metrics.quota(connection)
-    projects = metrics.projects(connection, limit=10)
+    projects = metrics.projects(connection, limit=6)
     models = metrics.model_breakdown(connection)
-    sessions_list = metrics.recent_sessions(connection, limit=10)
+    sessions_list = metrics.recent_sessions(connection, limit=6)
     coverage = metrics.coverage(connection)
     quota_markup = "".join(_quota(item) for item in quotas) or '<div class="empty">No quota snapshots. Run tokonomy watch-limits.</div>'
     stamp = generated_at.strftime("%Y-%m-%d %H:%M UTC")

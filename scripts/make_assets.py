@@ -158,7 +158,7 @@ def main() -> int:
 
         dashboard_page = temp / "dashboard.html"
         dashboard_page.write_text(dashboard_markup(demo_dir), encoding="utf-8")
-        screenshot(browser, dashboard_page, DOCS / "dashboard.png", 1440, 2540, 1.4)
+        screenshot(browser, dashboard_page, DOCS / "dashboard.png", 1440, 2265, 1.4)
         (DOCS / "dashboard.html").write_text(dashboard_page.read_text(encoding="utf-8"), encoding="utf-8")
         print("wrote docs/dashboard.png and docs/dashboard.html")
     return 0

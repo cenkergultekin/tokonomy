@@ -1,4 +1,4 @@
-﻿"""Human-friendly formatting shared by the CLI, TUI, web dashboard and MCP."""
+"""Human-friendly formatting shared by the CLI, TUI, web dashboard and MCP."""
 
 from __future__ import annotations
 
@@ -43,10 +43,10 @@ def pct(value: float | None, digits: int = 1) -> str:
 def project_name(path: str | None) -> str:
     """Readable project label for POSIX and Windows paths."""
     if not path:
-        return "Unknown project"
+        return "Unattributed"
     cleaned = path.replace("\\", "/").rstrip("/")
     if not cleaned:
-        return "Unknown project"
+        return "Unattributed"
     home = str(Path.home()).replace("\\", "/").rstrip("/").lower()
     lowered = cleaned.lower()
     if lowered == home or re_home(lowered):
