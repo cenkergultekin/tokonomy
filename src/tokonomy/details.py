@@ -1,5 +1,5 @@
 from textual.screen import ModalScreen
-from textual.widgets import Static, DataTable, Footer
+from textual.widgets import Static, DataTable, Footer, Input, Button
 from textual.containers import VerticalScroll
 from tokonomy.store import Store
 
@@ -11,11 +11,17 @@ class SessionDetail(ModalScreen):
     def compose(self):
         with VerticalScroll():
             yield Static('',id='detail',markup=False)
+            yield Input(placeholder='Work group name', id='work-name')
+            yield Button('Save group', id='save-group')
+            yield Button('Remove from group', id='remove-group')
+            yield Static('', id='group-status', markup=False)
             yield DataTable(id='events')
         yield Footer()
     def on_mount(self):
         store=Store(self.data_dir/'tokonomy.sqlite3'); c=store.connection
         try:
+            group=c.execute('SELECT name FROM work_assignments WHERE source=? AND session_id=?',(self.source,self.sid)).fetchone()
+            self.query_one('#work-name', Input).value=group[0] if group else ''
             context=c.execute('SELECT * FROM session_context WHERE source=? AND session_id=?',(self.source,self.sid)).fetchone()
             children=c.execute('SELECT session_id FROM session_context WHERE source=? AND parent_id=?',(self.source,self.sid)).fetchall()
             compact=c.execute('SELECT timestamp,line,source_file FROM session_events WHERE source=? AND session_id=?',(self.source,self.sid)).fetchall()
@@ -30,3 +36,17 @@ class SessionDetail(ModalScreen):
                 table.add_row(*[str(v) if v is not None else 'Unknown' for v in r], f'{origin[0]} / record {origin[1]}' if origin else 'Event ID in session source')
             for r in compact: table.add_row(str(r[0]),f'compaction · record {r[1]}','—','—','—','—', str(r[2]))
         finally: store.close()
+
+    def on_button_pressed(self, event: Button.Pressed):
+        name=self.query_one('#work-name',Input).value.strip()
+        if event.button.id=='save-group' and not name:
+            self.query_one('#group-status',Static).update('Enter a group name.'); return
+        store=Store(self.data_dir/'tokonomy.sqlite3')
+        try:
+            if event.button.id=='save-group':
+                store.connection.execute('INSERT OR REPLACE INTO work_assignments VALUES (?,?,?)',(self.source,self.sid,name))
+            elif event.button.id=='remove-group':
+                store.connection.execute('DELETE FROM work_assignments WHERE source=? AND session_id=?',(self.source,self.sid))
+                self.query_one('#work-name',Input).value=''
+        finally: store.close()
+        self.query_one('#group-status',Static).update('Group saved.' if event.button.id=='save-group' else 'Group removed.')

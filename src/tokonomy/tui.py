@@ -72,6 +72,7 @@ class TokonomyApp(App):
                     yield DataTable(id='limits', cursor_type='row')
             with TabPane('2 Sessions', id='sessions'):
                 yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex'),('Hermes','hermes'),('OpenCode','opencode'),('Cursor','cursor')], value='all', allow_blank=False, id='provider-filter')
+                yield Select([('Recent activity','recent'),('Largest input','input'),('Largest output','output'),('Largest cache read','cache')],value='recent',allow_blank=False,id='sort-order')
                 yield Input(placeholder='Filter by provider, model or session IDâ€¦', id='search')
                 yield DataTable(id='session-table', cursor_type='row')
             with TabPane('3 Models', id='models'):
@@ -132,8 +133,10 @@ class TokonomyApp(App):
             totals = c.execute('SELECT COUNT(*), SUM(input_tokens), SUM(cached_input_tokens), SUM(cache_write_tokens), SUM(output_tokens) FROM sessions').fetchone()
             for key, label, value in zip(['count','input','cache-read','cache-write','output'], ['SESSIONS','INPUT','CACHE READ','CACHE WRITE','OUTPUT'], totals):
                 self.query_one('#'+key, Static).update(f'{label}\n[bold #82c783]{number(value)}[/]')
+            self.session_projects={(r[0],r[1]):r[2] or 'Unknown' for r in c.execute('SELECT source,session_id,project FROM session_context')}
+            self.session_groups={(r[0],r[1]):r[2] for r in c.execute('SELECT source,session_id,name FROM work_assignments')}
             self.session_rows = [tuple(r) for r in c.execute('SELECT source, session_id, model, input_tokens, output_tokens, last_seen_at, cached_input_tokens, cache_write_tokens FROM sessions ORDER BY last_seen_at DESC')]
-            self.fill_sessions('')
+            self.fill_sessions(self.query_one('#search', Input).value)
             table = self.query_one('#model-table', DataTable); table.clear()
             for r in c.execute('SELECT source, model, COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cached_input_tokens) FROM model_usage GROUP BY source, model ORDER BY SUM(input_tokens) DESC'):
                 table.add_row(r[0], r[1], *[number(v) for v in r[2:]])
@@ -159,19 +162,26 @@ class TokonomyApp(App):
     def fill_sessions(self, text):
         table = self.query_one('#session-table', DataTable); table.clear()
         selected = self.query_one('#provider-filter', Select).value
-        for row in self.session_rows:
+        order=self.query_one('#sort-order',Select).value
+        index={'input':3,'output':4,'cache':6}.get(order)
+        rows=sorted(self.session_rows,key=lambda r:r[index] if r[index] is not None else -1,reverse=True) if index is not None else self.session_rows
+        for row in rows:
             if selected != 'all' and row[0] != selected: continue
-            if text.lower() in ' '.join(str(v) for v in row).lower():
+            searchable=' '.join(str(v) for v in row)+' '+self.session_projects.get((row[0],row[1]),'')+' '+self.session_groups.get((row[0],row[1]),'')
+            if text.lower() in searchable.lower():
                 table.add_row(row[0], row[1], row[2] or 'Unknown', number(row[3]), number(row[4]), row[5] or 'Unknown', number(row[6]), number(row[7]), key=row[0]+'|'+row[1])
 
     def on_select_changed(self, event: Select.Changed):
-        if hasattr(self, 'session_rows'):
+        if event.select.id in ('provider-filter','sort-order') and hasattr(self, 'session_rows'):
             self.fill_sessions(self.query_one('#search', Input).value)
 
     def on_input_changed(self, event: Input.Changed):
-        self.fill_sessions(event.value)
+        if event.input.id == 'search':
+            self.fill_sessions(event.value)
 
     async def action_reload(self):
+        if len(self.screen_stack) > 1:
+            return
         import asyncio
         from tokonomy.cli import collect
         self.query_one('#status', Static).update('Refreshing...')
@@ -184,7 +194,12 @@ class TokonomyApp(App):
             self.notify(str(exc), severity='error')
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
+        if event.data_table.id == 'projects-table':
+            project=event.data_table.get_row(event.row_key)[0]
+            self.action_page(1)
+            self.query_one('#search',Input).value=project
+            return
         if event.data_table.id == 'session-table':
             from tokonomy.details import SessionDetail
             source, sid = event.row_key.value.split('|',1)
-            self.push_screen(SessionDetail(self.data_dir, source, sid))
+            self.push_screen(SessionDetail(self.data_dir, source, sid), lambda _: self.load_data())
