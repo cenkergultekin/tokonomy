@@ -105,31 +105,17 @@ def cli_markup(data_dir: Path) -> str:
     )
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
     * {{ box-sizing: border-box; }}
-    body {{ margin:0; width:1500px; height:960px; background:
-      radial-gradient(900px 500px at 18% 0%, rgba(126,231,135,0.16), transparent 60%),
-      radial-gradient(700px 400px at 90% 10%, rgba(108,182,255,0.10), transparent 55%),
-      #050807; display:flex; align-items:center; justify-content:center; }}
-    .window {{ width:1320px; border-radius:16px; overflow:hidden; border:1px solid rgba(126,231,135,0.20);
-      box-shadow: 0 40px 120px rgba(0,0,0,0.65), 0 0 0 1px rgba(0,0,0,0.5); background:#0a0e0c; }}
-    .bar {{ height:44px; background:linear-gradient(180deg,#161d18,#0e1310); display:flex; align-items:center;
-      padding:0 16px; gap:8px; border-bottom:1px solid rgba(255,255,255,0.06); }}
-    .dot {{ width:11px; height:11px; border-radius:50%; }}
-    .title {{ color:#8b9a91; font: 12px "Cascadia Code", Consolas, monospace; margin:0 auto; }}
-    .body {{ padding:18px 22px 22px; }}
-    .prompt {{ color:#7ee787; font:600 14px "Cascadia Code", Consolas, monospace; margin-bottom:10px; }}
-    .prompt .arrow {{ color:#6cb6ff; }}
-    pre {{ margin:0; color:#dbe6df; font:14px/1.55 "Cascadia Code", "Consolas", monospace; white-space:pre; }}
-    .cursor {{ display:inline-block; width:8px; height:16px; background:#7ee787; vertical-align:-2px; opacity:.8; }}
+    html, body {{ margin:0; }}
+    body {{ width:1500px; height:960px; background:#262626; color:#d8d7d0; padding:64px 72px; overflow:hidden; }}
+    body::after {{ content:""; position:fixed; inset:0; pointer-events:none; opacity:.05;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }}
+    .prompt {{ color:#a7c59a; font:500 14px "Cascadia Code", Consolas, monospace; margin-bottom:18px; }}
+    .prompt span {{ color:#73736c; }}
+    pre {{ margin:0; color:#d8d7d0; font:14px/1.62 "Cascadia Code", "Consolas", monospace; white-space:pre; }}
     </style></head><body>
-    <div class="window">
-      <div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span>
-      <span class="dot" style="background:#28c840"></span><span class="title">tokonomy — local AI usage observatory</span></div>
-      <div class="body">
-        <div class="prompt">~/tokonomy <span class="arrow">❯</span> tokonomy dashboard</div>
-        <pre>{output}</pre>
-        <pre>~/tokonomy <span class="arrow">❯</span> <span class="cursor"></span></pre>
-      </div>
-    </div></body></html>"""
+    <div class="prompt">~/tokonomy <span>$</span> tokonomy dashboard</div>
+    <pre>{output}</pre>
+    </body></html>"""
 
 
 def dashboard_markup(data_dir: Path) -> str:
@@ -167,12 +153,12 @@ def main() -> int:
 
         cli_page = temp / "cli.html"
         cli_page.write_text(cli_markup(demo_dir), encoding="utf-8")
-        screenshot(browser, cli_page, DOCS / "cli.png", 1500, 960, 2.0)
+        screenshot(browser, cli_page, DOCS / "cli.png", 1500, 720, 2.0)
         print("wrote docs/cli.png")
 
         dashboard_page = temp / "dashboard.html"
         dashboard_page.write_text(dashboard_markup(demo_dir), encoding="utf-8")
-        screenshot(browser, dashboard_page, DOCS / "dashboard.png", 1440, 2880, 1.3)
+        screenshot(browser, dashboard_page, DOCS / "dashboard.png", 1440, 2540, 1.4)
         (DOCS / "dashboard.html").write_text(dashboard_page.read_text(encoding="utf-8"), encoding="utf-8")
         print("wrote docs/dashboard.png and docs/dashboard.html")
     return 0

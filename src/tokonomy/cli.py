@@ -377,7 +377,7 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
         width = shutil.get_terminal_size((96, 24)).columns
         line = "─" * min(84, max(56, width - 4))
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        _safe_print(_color(" ◍ TOKONOMY ", "1;38;2;126;231;135") + _color("LOCAL AI USAGE OBSERVATORY", "90") + f"   {stamp}")
+        _safe_print(_color("tokonomy", "1;32") + f"  {stamp}")
         _safe_print(_color(line, "90"))
         sessions_text = f"{data['sessions']:,}"
         _safe_print(
@@ -387,7 +387,7 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
             f"OUTPUT {_color(compact(data['output']), '35')}   "
             f"EST. SPEND {_color(money(data['cost']), '33')}"
         )
-        _safe_print(_color(f"  cache-aware · {data['sessions']} sessions · {pct(data['cost_coverage'])} of tokens priceable · estimates, not invoices", "90"))
+        _safe_print(_color(f"  {pct(data['cost_coverage'])} priceable · estimates", "90"))
         _safe_print("")
         _safe_print(_color("  ACTIVITY · last 14 days · uncached input", "1;37"))
         values = [row["uncached"] for row in days[:-1]]
@@ -438,12 +438,6 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
                     f"{money(project['cost']):>9}"
                 )
             _safe_print("")
-        _safe_print(_color("  COMMANDS", "1;37"))
-        _safe_print("  tokonomy web          open the local dashboard in a browser")
-        _safe_print("  tokonomy digest       weekly summary with burn forecast")
-        _safe_print("  tokonomy mcp          expose usage tools to your coding agent")
-        _safe_print("  tokonomy history      browse observed quota periods")
-        _safe_print("")
         _safe_print(_color(f"  Database  {data_dir / 'tokonomy.sqlite3'}", "90"))
         return 0
     finally:

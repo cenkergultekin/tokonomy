@@ -1,4 +1,4 @@
-"""Human-friendly formatting shared by the CLI, TUI, web dashboard and MCP."""
+﻿"""Human-friendly formatting shared by the CLI, TUI, web dashboard and MCP."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 def compact(value: float | int | None, digits: int = 2) -> str:
     """1234567 -> 1.23M, 18400 -> 18.4K. None stays an em dash, never zero."""
     if value is None:
-        return "—"
+        return "n/a"
     number = float(value)
     sign = "-" if number < 0 else ""
     number = abs(number)
@@ -26,7 +26,7 @@ def compact(value: float | int | None, digits: int = 2) -> str:
 
 def money(value: float | None, currency: str = "$") -> str:
     if value is None:
-        return "—"
+        return "n/a"
     if value == 0:
         return f"{currency}0.00"
     if abs(value) < 0.01:
@@ -36,7 +36,7 @@ def money(value: float | None, currency: str = "$") -> str:
 
 def pct(value: float | None, digits: int = 1) -> str:
     if value is None:
-        return "—"
+        return "n/a"
     return f"{value:.{digits}f}%"
 
 
@@ -64,13 +64,13 @@ def re_home(lowered: str) -> bool:
 
 def short_time(value: str | None) -> str:
     if not value:
-        return "—"
+        return "n/a"
     return value.replace("T", " ").split("+", 1)[0].split(".")[0]
 
 
 def short_date(value: str | None) -> str:
     if not value:
-        return "—"
+        return "n/a"
     return value[:10]
 
 
@@ -78,11 +78,11 @@ def relative_reset(resets_at: str | None, now=None) -> str:
     from datetime import datetime, timezone
 
     if not resets_at:
-        return "reset unknown"
+        return "unknown"
     try:
         reset = datetime.fromisoformat(resets_at)
     except ValueError:
-        return "reset unknown"
+        return "unknown"
     current = now or datetime.now(timezone.utc)
     seconds = (reset - current).total_seconds()
     if seconds <= 0:

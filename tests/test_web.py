@@ -20,9 +20,9 @@ class WebTests(unittest.TestCase):
                 usage_events=(UsageEvent("e1", now, "gpt-5", 10_000, 1_000, 8_000),),
             ))
             markup = render_dashboard(store)
-            self.assertIn("Your AI usage", markup)
-            self.assertIn("Cache hit", markup)
-            self.assertIn("no prompts", markup)
+            self.assertIn("Uncached input", markup)
+            self.assertIn("Quota", markup)
+            self.assertIn("Sources", markup)
             self.assertNotIn("CDN", markup)
             self.assertNotIn(r"C:\private", markup)
             self.assertNotIn("transcript.jsonl", markup)
@@ -38,7 +38,7 @@ class WebTests(unittest.TestCase):
             store = Store(Path(directory) / "empty.sqlite3")
             markup = render_dashboard(store)
             self.assertIn("No dated usage yet", markup)
-            self.assertIn("No quota snapshots yet", markup)
+            self.assertIn("No quota snapshots", markup)
             store.close()
 
 
