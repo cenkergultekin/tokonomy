@@ -210,6 +210,9 @@ class Store:
     def count_sessions(self) -> int:
         return int(self.connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0])
 
+    def count_events(self, source: str) -> int:
+        return int(self.connection.execute("SELECT COUNT(*) FROM usage_events WHERE source = ?", (source,)).fetchone()[0])
+
     def save_limit_snapshot(self, snapshot) -> None:
         row = (snapshot.provider, snapshot.limit_id, snapshot.plan_type,
                snapshot.window_seconds, snapshot.used_percent, snapshot.captured_at,

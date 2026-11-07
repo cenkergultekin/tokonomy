@@ -1,5 +1,7 @@
 import argparse
 import os
+import shutil
+import sys
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -128,10 +130,88 @@ def show_history(data_dir: Path, show_all: bool) -> int:
         store.close()
 
 
+def _color(text: str, code: str) -> str:
+    if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
+        return text
+    return f"\033[{code}m{text}\033[0m"
+
+
+def _safe_print(text: str) -> None:
+    if sys.stdout.encoding and sys.stdout.encoding.lower().replace("-", "") in {"utf8", "utf8sig"}:
+        print(text)
+        return
+    fallback = text.translate(str.maketrans({"─": "-", "█": "#", "░": ".", "·": "|", "—": "-"}))
+    print(fallback.encode(sys.stdout.encoding or "ascii", errors="replace").decode(sys.stdout.encoding or "ascii"))
+
+
+def _bar(percent: float, width: int = 24) -> str:
+    filled = max(0, min(width, round(percent * width / 100)))
+    color = "32" if percent < 60 else "33" if percent < 85 else "31"
+    return _color("█" * filled, color) + _color("░" * (width - filled), "90")
+
+
+def _format_tokens(value: int | None) -> str:
+    return f"{value:,}" if value is not None else "—"
+
+
+def dashboard(data_dir: Path, refresh: bool = True) -> int:
+    if refresh:
+        collect(data_dir)
+    store = Store(data_dir / "tokonomy.sqlite3")
+    try:
+        width = shutil.get_terminal_size((90, 24)).columns
+        line = "─" * min(76, max(48, width - 4))
+        _safe_print(_color(" TOKONOMY ", "1;38;2;116;192;252") + _color("LOCAL AI USAGE", "90"))
+        _safe_print(_color(line, "90"))
+        session_count = store.count_sessions()
+        codex_totals = store.connection.execute(
+            "SELECT SUM(input_tokens), SUM(output_tokens) FROM usage_events WHERE source='codex'"
+        ).fetchone()
+        claude_totals = store.connection.execute(
+            "SELECT SUM(input_tokens), SUM(output_tokens) FROM sessions WHERE source='claude-code'"
+        ).fetchone()
+        codex_sessions = store.connection.execute("SELECT COUNT(*) FROM sessions WHERE source='codex'").fetchone()[0]
+        claude_sessions = store.connection.execute("SELECT COUNT(*) FROM sessions WHERE source='claude-code'").fetchone()[0]
+        _safe_print(f"  Sessions tracked    {_color(f'{session_count:,}', '1;37')}")
+        _safe_print(f"  By source            Codex {codex_sessions:,}  |  Claude Code {claude_sessions:,}")
+        _safe_print(f"  Codex exact tokens   {_color(_format_tokens(codex_totals[0]), '36')} in  /  {_color(_format_tokens(codex_totals[1]), '35')} out")
+        _safe_print(f"  Claude session sum   {_color(_format_tokens(claude_totals[0]), '36')} in  /  {_color(_format_tokens(claude_totals[1]), '35')} out")
+        _safe_print("")
+        latest = store.connection.execute(
+            """SELECT s.* FROM limit_snapshots s
+               JOIN (SELECT provider, limit_id, window_seconds, MAX(captured_at) AS latest
+                     FROM limit_snapshots GROUP BY provider, limit_id, window_seconds) l
+                 ON s.provider=l.provider AND s.limit_id=l.limit_id
+                AND s.window_seconds=l.window_seconds AND s.captured_at=l.latest
+               ORDER BY s.provider, s.window_seconds"""
+        ).fetchall()
+        _safe_print(_color("  CURRENT LIMITS", "1;37"))
+        if latest:
+            for row in latest:
+                window = "5h" if row["window_seconds"] == 18000 else "7d" if row["window_seconds"] == 604800 else f"{row['window_seconds']}s"
+                reset = row["resets_at"] or "reset unknown"
+                if row["resets_at"]:
+                    reset = row["resets_at"].replace("T", " ").split("+", 1)[0] + " UTC"
+                percent = row["used_percent"]
+                _safe_print(f"  {row['provider']:<9} {window:<3} {_bar(percent)}  {percent:>5g}%  resets {reset}")
+        else:
+            _safe_print("  No quota snapshots yet. Run `tokonomy watch-limits` to collect them.")
+        _safe_print("")
+        _safe_print(_color("  COMMANDS", "1;37"))
+        _safe_print("  scan                 Import new session records")
+        _safe_print("  history [--all]      Browse observed quota periods")
+        _safe_print("  watch-limits         Keep provider limits refreshed")
+        _safe_print("")
+        _safe_print(_color(f"  Database  {data_dir / 'tokonomy.sqlite3'}", "90"))
+        return 0
+    finally:
+        store.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tokonomy")
     parser.add_argument("--version", action="version", version=__version__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
     scan_parser = subparsers.add_parser("scan", help="scan local session metadata")
     scan_parser.add_argument("--data-dir", type=Path, default=default_data_dir())
     scan_parser.add_argument("--force", action="store_true", help="re-read every source file")
@@ -141,7 +221,12 @@ def main() -> int:
     history_parser = subparsers.add_parser("history", help="show observed historical provider limit periods")
     history_parser.add_argument("--data-dir", type=Path, default=default_data_dir())
     history_parser.add_argument("--all", action="store_true", help="show all recorded periods")
+    dashboard_parser = subparsers.add_parser("dashboard", help="show the local usage overview")
+    dashboard_parser.add_argument("--data-dir", type=Path, default=default_data_dir())
+    dashboard_parser.add_argument("--no-refresh", action="store_true", help="do not scan source files first")
     args = parser.parse_args()
+    if args.command is None:
+        return dashboard(default_data_dir())
     if args.command == "scan":
         return collect(args.data_dir, force=args.force)
     if args.command == "watch-limits":
@@ -150,4 +235,6 @@ def main() -> int:
         return watch_limits(args.data_dir, args.interval)
     if args.command == "history":
         return show_history(args.data_dir, args.all)
+    if args.command == "dashboard":
+        return dashboard(args.data_dir, refresh=not args.no_refresh)
     return 2

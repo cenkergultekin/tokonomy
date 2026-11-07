@@ -16,6 +16,17 @@ JSONL records are parsed in memory to extract allowlisted fields. Source files a
 
 ## Install
 
+Windows için repo klasöründe bir kez:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+.\install.ps1
+```
+
+Yeni bir terminal açtıktan sonra `tokonomy` yazmak yerel kullanım ekranını gösterir. Dashboard açılırken yeni/değişmiş session kayıtlarını tarar. Var olan terminalin PATH'i yenilenmediyse yeni terminal açın.
+
+Elle Python kurulumu:
+
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -24,6 +35,8 @@ tokonomy scan
 tokonomy history --all
 tokonomy watch-limits --interval 120
 ```
+
+Terminal komutları: `tokonomy scan [--force]`, `tokonomy history [--all]` ve `tokonomy watch-limits [--interval 120]`.
 
 The default database is `%LOCALAPPDATA%\tokonomy\tokonomy.sqlite3`. `watch-limits` remains running until Ctrl+C and polls Codex's limit snapshot every 120 seconds by default (minimum 30 seconds). It also rescans only source files whose size or modification time changed. Use `--data-dir <path>` to select another database directory. Set `CODEX_HOME` or `CLAUDE_CONFIG_DIR` if either client stores sessions outside its default location.
 
