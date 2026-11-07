@@ -8,6 +8,7 @@ unknown model prices stay ``None`` instead of silently falling back to zero.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 # USD per 1M tokens. Defaults are public list prices for the model families the
@@ -33,9 +34,17 @@ def _normalise(pattern: str) -> str:
     return pattern.lower().strip()
 
 
+def _default_data_dir() -> Path:
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "tokonomy"
+    pointer = base / "active-directory.txt"
+    return Path(pointer.read_text(encoding="utf-8").strip()) if pointer.exists() else base
+
+
 def load_pricing(data_dir: Path | None = None) -> list[tuple[str, float, float, float, float]]:
     """Default table merged with an optional local override file."""
     rates = {pattern: (pattern, i, c, w, o) for pattern, i, c, w, o in DEFAULT_RATES}
+    if data_dir is None:
+        data_dir = _default_data_dir()
     if data_dir:
         override = Path(data_dir) / "pricing.json"
         try:
