@@ -306,7 +306,17 @@ def main() -> int:
     period_parser.add_argument('--hours', type=int, default=24)
     export_parser = subparsers.add_parser('export', help='export versioned usage metadata as JSONL')
     export_parser.add_argument('path',type=Path)
+    subparsers.add_parser('doctor', help='read-only data quality checks')
     args = parser.parse_args()
+    if args.command=='doctor':
+        import sqlite3
+        from tokonomy.diagnostics import audit
+        connection=sqlite3.connect((default_data_dir()/'tokonomy.sqlite3').as_uri()+'?mode=ro',uri=True)
+        try:
+            rows=audit(connection)
+            for name,state,detail in rows: print(f'{state.upper()} | {name} | {detail}')
+            return 1 if any(state in ('warning','error') for _,state,_ in rows) else 0
+        finally: connection.close()
     if args.command=='export':
         from tokonomy.exporting import export
         store=Store(default_data_dir()/'tokonomy.sqlite3')

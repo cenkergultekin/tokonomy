@@ -194,6 +194,10 @@ class TokonomyApp(App):
             self.notify(str(exc), severity='error')
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
+        if event.data_table.id == 'sources-table':
+            from tokonomy.diagnostics import Diagnostics
+            self.push_screen(Diagnostics(self.data_dir))
+            return
         if event.data_table.id in ('limits','history-table'):
             key=event.row_key.value
             if key is not None and str(key).isdigit():
