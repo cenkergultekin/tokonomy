@@ -17,7 +17,7 @@ def default_data_dir() -> Path:
     return base / "tokonomy"
 
 
-def collect(data_dir: Path, store: Store | None = None, force: bool = False) -> int:
+def collect(data_dir: Path, store: Store | None = None, force: bool = False, quiet: bool = False) -> int:
     home = Path.home()
     sources = (
         ("Codex", codex.discover(Path(os.environ.get("CODEX_HOME", home / ".codex")) / "sessions"), codex.read_session),
@@ -36,14 +36,16 @@ def collect(data_dir: Path, store: Store | None = None, force: bool = False) -> 
                     session = parser(path)
                     if session:
                         store.upsert_session(session)
+                        from tokonomy.context import enrich
+                        enrich(store, session, path)
                         imported += 1
                     store.mark_file_scanned(label.lower().replace(" ", "-"), path)
                     scanned += 1
                 except (OSError, ValueError, EOFError):
                     errors += 1
-            print(f"{label}: discovered={len(files)} scanned={scanned} changed_sessions={imported} errors={errors}")
-        print(f"Indexed sessions: {store.count_sessions()}")
-        print(f"Database: {data_dir / 'tokonomy.sqlite3'}")
+            if not quiet: print(f"{label}: discovered={len(files)} scanned={scanned} changed_sessions={imported} errors={errors}")
+        if not quiet: print(f"Indexed sessions: {store.count_sessions()}")
+        if not quiet: print(f"Database: {data_dir / 'tokonomy.sqlite3'}")
     finally:
         if owns_store:
             store.close()
@@ -224,9 +226,51 @@ def main() -> int:
     dashboard_parser = subparsers.add_parser("dashboard", help="show the local usage overview")
     dashboard_parser.add_argument("--data-dir", type=Path, default=default_data_dir())
     dashboard_parser.add_argument("--no-refresh", action="store_true", help="do not scan source files first")
+    reset_parser = subparsers.add_parser('resets', help='list observed quota drops or label a reset')
+    reset_parser.add_argument('--mark', type=int, help='row ID of an observed transition')
+    reset_parser.add_argument('--reason', choices=['user-credit','scheduled','unknown'], default='unknown')
+    collector_parser = subparsers.add_parser('collector', help='background collection')
+    collector_parser.add_argument('action', choices=['start','stop','status','run'])
+    group_parser = subparsers.add_parser('group', help='manage explicit work groups')
+    group_parser.add_argument('action', choices=['list','assign','remove'])
+    group_parser.add_argument('--name')
+    group_parser.add_argument('--source', choices=['codex','claude-code'])
+    group_parser.add_argument('--session')
+    period_parser = subparsers.add_parser('period', help='recorded usage and largest contributors')
+    period_parser.add_argument('--source', choices=['codex','claude-code'], default='codex')
+    period_parser.add_argument('--hours', type=int, default=24)
     args = parser.parse_args()
+    if args.command == 'collector':
+        from tokonomy.collector import control
+        control(default_data_dir(), args.action)
+        return 0
+    if args.command in ('group','period'):
+        from tokonomy.work import groups, period_report
+        if args.command=='group' and args.action!='list' and (not args.source or not args.session or (args.action=='assign' and not args.name)):
+            parser.error('assign requires --name --source --session; remove requires --source --session')
+        if args.command=='period' and args.hours<=0: parser.error('--hours must be positive')
+        store=Store(default_data_dir()/'tokonomy.sqlite3')
+        try:
+            if args.command=='group': groups(store,args.action,args.name,args.source,args.session)
+            else: period_report(store,args.source,args.hours)
+        finally: store.close()
+        return 0
+    if args.command == 'resets':
+        store = Store(default_data_dir() / 'tokonomy.sqlite3')
+        try:
+            c = store.connection
+            if not c.execute("SELECT 1 FROM sqlite_master WHERE name='quota_transitions'").fetchone():
+                print('No observed transitions yet.'); return 0
+            if args.mark is not None:
+                c.execute('UPDATE quota_transitions SET reason=? WHERE rowid=?', ('user-labelled:'+args.reason,args.mark))
+            for row in c.execute('SELECT rowid,provider,window_seconds,observed_at,previous_percent,current_percent,reason FROM quota_transitions ORDER BY observed_at DESC LIMIT 50'):
+                print(' | '.join(str(v) for v in row))
+        finally: store.close()
+        return 0
     if args.command is None:
-        return dashboard(default_data_dir())
+        from tokonomy.tui import TokonomyApp
+        TokonomyApp(default_data_dir()).run()
+        return 0
     if args.command == "scan":
         return collect(args.data_dir, force=args.force)
     if args.command == "watch-limits":

@@ -99,8 +99,9 @@ class Store:
     def __init__(self, path: Path):
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(path)
+        self.connection = sqlite3.connect(path, timeout=30)
         self.connection.row_factory = sqlite3.Row
+        self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.executescript(SCHEMA)
         snapshot_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(limit_snapshots)")}
         for name, declaration in (
@@ -214,12 +215,16 @@ class Store:
         return int(self.connection.execute("SELECT COUNT(*) FROM usage_events WHERE source = ?", (source,)).fetchone()[0])
 
     def save_limit_snapshot(self, snapshot) -> None:
+        self.connection.execute("CREATE TABLE IF NOT EXISTS quota_transitions (provider TEXT, limit_id TEXT, window_seconds INTEGER, observed_at TEXT, previous_at TEXT, previous_percent REAL, current_percent REAL, old_reset TEXT, new_reset TEXT, reason TEXT, UNIQUE(provider,limit_id,window_seconds,observed_at))")
+        previous = self.connection.execute("SELECT captured_at,used_percent,resets_at FROM limit_snapshots WHERE provider=? AND limit_id=? AND window_seconds=? AND captured_at<? ORDER BY captured_at DESC LIMIT 1", (snapshot.provider,snapshot.limit_id,snapshot.window_seconds,snapshot.captured_at)).fetchone()
+        if previous and snapshot.used_percent < previous[1]:
+            self.connection.execute("INSERT OR IGNORE INTO quota_transitions VALUES (?,?,?,?,?,?,?,?,?,?)", (snapshot.provider,snapshot.limit_id,snapshot.window_seconds,snapshot.captured_at,previous[0],previous[1],snapshot.used_percent,previous[2],snapshot.resets_at,'unknown'))
         row = (snapshot.provider, snapshot.limit_id, snapshot.plan_type,
                snapshot.window_seconds, snapshot.used_percent, snapshot.captured_at,
                snapshot.resets_at, int(snapshot.exhausted), snapshot.input_tokens,
                snapshot.output_tokens, snapshot.session_count)
         self.connection.execute(
-            """INSERT INTO limit_snapshots (
+            """INSERT OR IGNORE INTO limit_snapshots (
               provider, limit_id, plan_type, window_seconds, used_percent,
               captured_at, resets_at, exhausted, input_tokens, output_tokens, session_count,
               sessions_with_usage, average_input_tokens_per_session,

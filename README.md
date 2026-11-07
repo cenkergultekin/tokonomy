@@ -53,3 +53,13 @@ Claude plans can have 5-hour and weekly allowances, with plan-specific exception
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Collection and analysis
+
+`tokonomy collector start` starts a Windows background collector independent of the terminal UI. It imports changed files and polls Codex quotas every 120 seconds. `tokonomy collector status` shows the last cycle; `tokonomy collector stop` requests shutdown. It is not registered for Windows login startup. Only one collector per database runs. SQLite uses WAL with a 30-second lock timeout.
+
+`tokonomy period --source codex --hours 5` reports recorded usage over a rolling interval, sessions opened versus sessions with usage, and the largest input contributors. This is a rolling interval, not an inferred provider quota period. Missing activity outside local logs is not reconstructed.
+
+`tokonomy group assign --name "feature-a" --source codex --session SESSION_ID` assigns an explicit work group. Reassignment moves the session; `group remove --source codex --session SESSION_ID` removes membership. `group list` summarizes groups. Assignments survive rescans. Intent similarity is not inferred from transcript contents.
+
+The Projects tab groups observed working directories by local Git common directory, combining worktrees when available. Session details (Enter) show source files, token event IDs, recorded child agents and compaction observations. Counts describe recorded events, not all possible activity. `tokonomy resets` lists quota drops; `--mark ID --reason user-credit` labels a transition as user reported, without redeeming a provider reset credit.

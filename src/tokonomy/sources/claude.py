@@ -1,7 +1,7 @@
 from pathlib import Path
 from datetime import datetime, timezone
 
-from tokonomy.models import ModelUsage, Session
+from tokonomy.models import ModelUsage, Session, UsageEvent
 from tokonomy.sources.jsonl import iter_jsonl
 
 
@@ -10,6 +10,7 @@ def discover(root: Path) -> list[Path]:
 
 
 def read_session(path: Path) -> Session | None:
+    events = {}
     session_id = None
     started_at = None
     last_seen_at = None
@@ -20,11 +21,23 @@ def read_session(path: Path) -> Session | None:
         if isinstance(sid, str):
             session_id = sid
         kind = record.get("type")
+        normalized = None
         stamp = record.get("timestamp")
         if isinstance(stamp, str):
             normalized = _timestamp(stamp)
             started_at = started_at or normalized
             last_seen_at = normalized or last_seen_at
+        if kind == "assistant":
+            message = record.get("message", {})
+            usage = message.get("usage", {})
+            identity = message.get("id")
+            if identity and usage and normalized:
+                fields = [usage.get(k) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")]
+                fields = [v if isinstance(v, int) and not isinstance(v, bool) else None for v in fields]
+                previous = events.get(identity)
+                if previous:
+                    fields = [max(a or 0, b or 0) if a is not None or b is not None else None for a,b in zip(fields, [previous.input_tokens, previous.output_tokens, previous.cached_input_tokens, previous.cache_write_tokens])]
+                events[identity] = UsageEvent(identity, normalized, message.get("model"), *fields)
         if kind == "cost-state":
             start_ms = record.get("startTime")
             if isinstance(start_ms, (int, float)):
@@ -38,6 +51,15 @@ def read_session(path: Path) -> Session | None:
                 }
     if not session_id:
         return None
+    # Message IDs deduplicate streaming blocks; cumulative cost-state is fallback only.
+    if events:
+        model_totals = {}
+        for event in events.values():
+            totals = model_totals.setdefault(event.model or "unknown", {})
+            for key, value in zip(("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"), (event.input_tokens, event.output_tokens, event.cached_input_tokens, event.cache_write_tokens)):
+                if value is not None: totals[key] = totals.get(key, 0) + value
+        if '/subagents/' in path.as_posix():
+            session_id = str(session_id) + ':' + path.stem
     by_model = []
     if model_totals:
         for name, values in model_totals.items():
@@ -66,6 +88,7 @@ def read_session(path: Path) -> Session | None:
         cache_write_tokens=total_cache_write,
         source_file=str(path),
         model_usage=tuple(by_model),
+        usage_events=tuple(events.values()),
     )
 
 

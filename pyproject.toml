@@ -9,7 +9,7 @@ description = "Local-first usage analytics for AI coding sessions"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["zstandard>=0.23,<1"]
+dependencies = ["zstandard>=0.23,<1", "textual>=0.89,<2"]
 
 [project.scripts]
 tokonomy = "tokonomy.cli:main"
