@@ -77,6 +77,7 @@ def collect(data_dir: Path, store: Store | None = None, force: bool = False, qui
                 if force or not store.has_scanned_file(spec.key, path, spec.parser_version)
             ]
             if not changed:
+                _mark_health(store, spec, len(files), 0, quiet)
                 if not quiet:
                     print(f"{spec.label}: {len(files)} files, no changes")
                 continue
