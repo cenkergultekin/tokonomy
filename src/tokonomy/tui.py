@@ -140,20 +140,20 @@ class TokonomyApp(App):
             table = self.query_one('#model-table', DataTable); table.clear()
             for r in c.execute('SELECT source, model, COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cached_input_tokens) FROM model_usage GROUP BY source, model ORDER BY SUM(input_tokens) DESC'):
                 table.add_row(r[0], r[1], *[number(v) for v in r[2:]])
-            rows = c.execute('SELECT provider, window_seconds, used_percent, resets_at, captured_at, limit_id FROM limit_snapshots ORDER BY captured_at DESC LIMIT 1000').fetchall()
+            rows = c.execute('SELECT provider, window_seconds, used_percent, resets_at, captured_at, limit_id, id FROM limit_snapshots ORDER BY captured_at DESC LIMIT 1000').fetchall()
             latest = self.query_one('#limits', DataTable); latest.clear()
             history = self.query_one('#history-table', DataTable); history.clear()
             seen = set()
             for r in rows:
                 window = {18000:'5 hours',604800:'7 days'}.get(r[1], str(r[1])+'s')
                 cells = (r[0], window, f'{r[2]:g}%', r[3] or 'Unknown', r[4])
-                history.add_row(*cells)
+                history.add_row(*cells, key=str(r[6]))
                 key = (r[0],r[1],r[5])
                 if key not in seen:
                     from datetime import timezone
                     expired = bool(r[3] and datetime.fromisoformat(r[3]) <= datetime.now(timezone.utc))
                     state = 'RESET PASSED / UNKNOWN' if expired else 'EXHAUSTED (observed)' if r[2]>=100 else 'Last observed'
-                    latest.add_row(*cells, state); seen.add(key)
+                    latest.add_row(*cells, state, key=str(r[6])); seen.add(key)
             if not any(k[0]=='claude-code' for k in seen):
                 latest.add_row('claude-code', 'Unknown', 'Unknown', 'Unknown', 'No quota source', 'UNKNOWN')
         finally:
@@ -194,6 +194,12 @@ class TokonomyApp(App):
             self.notify(str(exc), severity='error')
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
+        if event.data_table.id in ('limits','history-table'):
+            key=event.row_key.value
+            if key is not None and str(key).isdigit():
+                from tokonomy.periods import QuotaDetail
+                self.push_screen(QuotaDetail(self.data_dir,int(key)))
+            return
         if event.data_table.id == 'projects-table':
             project=event.data_table.get_row(event.row_key)[0]
             self.action_page(1)

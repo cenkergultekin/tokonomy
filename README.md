@@ -67,3 +67,5 @@ The Projects tab groups observed working directories by local Git common directo
 ## Source coverage
 
 Codex and Claude provide timestamped usage events. Hermes and OpenCode v2 are imported from read-only SQLite session counters; these totals are not allocated to dates or attributed to the last model as if all requests used it. Cursor imports allowlisted composer headers only: token values remain unknown. No credentials or message contents are selected by these database adapters. Sources shows imported counts and coverage. Antigravity/Gemini integration remains under investigation.
+
+Quota rows in Overview/History open a source-window report with Enter. Totals run from the reported reset minus window duration up to the selected observation, capped at reset. It distinguishes sessions opened from sessions with usage events, provides means/medians, and links contributors to session details. This is local observed coverage; reset timestamp jitter is not silently merged into inferred quota cycles.
