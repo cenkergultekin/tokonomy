@@ -1,7 +1,7 @@
 from datetime import datetime
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Header, Footer, Static, TabbedContent, TabPane, DataTable, Input
+from textual.widgets import Header, Footer, Static, TabbedContent, TabPane, DataTable, Input, Select
 from textual.containers import Horizontal, VerticalScroll
 from tokonomy.charts import analytics, activity
 from tokonomy.store import Store
@@ -71,6 +71,7 @@ class TokonomyApp(App):
                     yield Static('', id='graphs')
                     yield DataTable(id='limits', cursor_type='row')
             with TabPane('2 Sessions', id='sessions'):
+                yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex')], value='all', allow_blank=False, id='provider-filter')
                 yield Input(placeholder='Filter by provider, model or session IDâ€¦', id='search')
                 yield DataTable(id='session-table', cursor_type='row')
             with TabPane('3 Models', id='models'):
@@ -86,7 +87,7 @@ class TokonomyApp(App):
 
     def on_mount(self):
         for table, columns in [('limits', ['Provider', 'Window', 'Used', 'Reset (UTC)', 'Observed (UTC)', 'State']),
-                               ('session-table', ['Provider', 'Session', 'Model', 'Input', 'Output', 'Last activity']),
+                               ('session-table', ['Provider', 'Session', 'Model', 'Input', 'Output', 'Last activity', 'Cache read', 'Cache write']),
                                ('model-table', ['Provider', 'Model', 'Sessions', 'Input', 'Output', 'Cache read']),
                                ('history-table', ['Provider', 'Window', 'Used', 'Reset (UTC)', 'Observed (UTC)'])]:
             self.query_one('#'+table, DataTable).add_columns(*columns)
@@ -121,7 +122,7 @@ class TokonomyApp(App):
             totals = c.execute('SELECT COUNT(*), SUM(input_tokens), SUM(cached_input_tokens), SUM(cache_write_tokens), SUM(output_tokens) FROM sessions').fetchone()
             for key, label, value in zip(['count','input','cache-read','cache-write','output'], ['SESSIONS','INPUT','CACHE READ','CACHE WRITE','OUTPUT'], totals):
                 self.query_one('#'+key, Static).update(f'{label}\n[bold #82c783]{number(value)}[/]')
-            self.session_rows = [tuple(r) for r in c.execute('SELECT source, session_id, model, input_tokens, output_tokens, last_seen_at FROM sessions ORDER BY last_seen_at DESC')]
+            self.session_rows = [tuple(r) for r in c.execute('SELECT source, session_id, model, input_tokens, output_tokens, last_seen_at, cached_input_tokens, cache_write_tokens FROM sessions ORDER BY last_seen_at DESC')]
             self.fill_sessions('')
             table = self.query_one('#model-table', DataTable); table.clear()
             for r in c.execute('SELECT source, model, COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cached_input_tokens) FROM model_usage GROUP BY source, model ORDER BY SUM(input_tokens) DESC'):
@@ -147,9 +148,15 @@ class TokonomyApp(App):
 
     def fill_sessions(self, text):
         table = self.query_one('#session-table', DataTable); table.clear()
+        selected = self.query_one('#provider-filter', Select).value
         for row in self.session_rows:
+            if selected != 'all' and row[0] != selected: continue
             if text.lower() in ' '.join(str(v) for v in row).lower():
-                table.add_row(row[0], row[1], row[2] or 'Unknown', number(row[3]), number(row[4]), row[5] or 'Unknown', key=row[0]+'|'+row[1])
+                table.add_row(row[0], row[1], row[2] or 'Unknown', number(row[3]), number(row[4]), row[5] or 'Unknown', number(row[6]), number(row[7]), key=row[0]+'|'+row[1])
+
+    def on_select_changed(self, event: Select.Changed):
+        if hasattr(self, 'session_rows'):
+            self.fill_sessions(self.query_one('#search', Input).value)
 
     def on_input_changed(self, event: Input.Changed):
         self.fill_sessions(event.value)

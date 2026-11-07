@@ -58,8 +58,8 @@ def read_session(path: Path) -> Session | None:
             totals = model_totals.setdefault(event.model or "unknown", {})
             for key, value in zip(("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"), (event.input_tokens, event.output_tokens, event.cached_input_tokens, event.cache_write_tokens)):
                 if value is not None: totals[key] = totals.get(key, 0) + value
-        if '/subagents/' in path.as_posix():
-            session_id = str(session_id) + ':' + path.stem
+    if '/subagents/' in path.as_posix():
+        session_id = str(session_id) + ':' + path.stem
     by_model = []
     if model_totals:
         for name, values in model_totals.items():

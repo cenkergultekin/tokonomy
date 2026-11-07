@@ -5,6 +5,14 @@ from tokonomy.models import ModelUsage, Session
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS usage_origins (
+ source TEXT, event_id TEXT, source_file TEXT, record_number INTEGER,
+ PRIMARY KEY(source,event_id,source_file,record_number));
+CREATE INDEX IF NOT EXISTS origins_event ON usage_origins(source,event_id);
+CREATE TABLE IF NOT EXISTS session_sources (
+ source TEXT, session_id TEXT, source_file TEXT,
+ PRIMARY KEY(source,session_id,source_file));
+
 CREATE TABLE IF NOT EXISTS sessions (
   source TEXT NOT NULL,
   session_id TEXT NOT NULL,

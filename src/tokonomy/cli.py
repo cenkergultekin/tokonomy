@@ -14,7 +14,9 @@ from tokonomy.store import Store
 
 def default_data_dir() -> Path:
     base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    return base / "tokonomy"
+    directory = base / "tokonomy"
+    pointer = directory / "active-directory.txt"
+    return Path(pointer.read_text(encoding="utf-8").strip()) if pointer.exists() else directory
 
 
 def collect(data_dir: Path, store: Store | None = None, force: bool = False, quiet: bool = False) -> int:
@@ -27,6 +29,35 @@ def collect(data_dir: Path, store: Store | None = None, force: bool = False, qui
     store = store or Store(data_dir / "tokonomy.sqlite3")
     try:
         for label, files, parser in sources:
+            if label == "Claude Code":
+                changed = force or any(not store.has_scanned_file('claude-code', p) for p in files)
+                if not changed: continue
+                from tokonomy.reconcile import reconcile
+                from tokonomy.context import enrich
+                parsed = []
+                failures = 0
+                for path in files:
+                    try:
+                        session = parser(path)
+                        if session: parsed.append(session)
+                    except (OSError, ValueError, EOFError): failures += 1
+                if failures:
+                    if not quiet: print(f'Claude reconciliation deferred: {failures} unreadable files')
+                    continue
+                from tokonomy.sources.jsonl import iter_jsonl
+                for raw in parsed:
+                    store.connection.execute('INSERT OR IGNORE INTO session_sources VALUES (?,?,?)',(raw.source,raw.session_id,raw.source_file))
+                    store.connection.execute('DELETE FROM usage_origins WHERE source=? AND source_file=?',(raw.source,raw.source_file))
+                    for ordinal, record in enumerate(iter_jsonl(Path(raw.source_file)),1):
+                        message=record.get('message')
+                        if record.get('type')=='assistant' and isinstance(message,dict) and message.get('id'):
+                            store.connection.execute('INSERT OR IGNORE INTO usage_origins VALUES (?,?,?,?)',(raw.source,message['id'],raw.source_file,ordinal))
+                for session in reconcile(parsed):
+                    store.upsert_session(session)
+                    enrich(store, session, Path(session.source_file))
+                for path in files: store.mark_file_scanned('claude-code', path)
+                if not quiet: print(f'Claude Code: reconciled {len(parsed)} files by session and message ID')
+                continue
             errors = imported = 0
             scanned = 0
             for path in files:
