@@ -1,7 +1,7 @@
 from datetime import datetime
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Header, Footer, Static, TabbedContent, TabPane, DataTable, Input, Select
+from textual.widgets import Header, Footer, Static, TabbedContent, TabPane, DataTable, Input, Select, Button
 from textual.containers import Horizontal, VerticalScroll
 from tokonomy.charts import analytics, activity
 from tokonomy.store import Store
@@ -84,6 +84,7 @@ class TokonomyApp(App):
             with TabPane('5 Projects', id='projects'):
                 yield DataTable(id='projects-table', cursor_type='row')
             with TabPane('6 Sources', id='sources'):
+                yield Button('Collector settings', id='collector-settings')
                 yield DataTable(id='sources-table', cursor_type='row')
         yield Static('', id='status')
         yield Footer()
@@ -213,3 +214,8 @@ class TokonomyApp(App):
             from tokonomy.details import SessionDetail
             source, sid = event.row_key.value.split('|',1)
             self.push_screen(SessionDetail(self.data_dir, source, sid), lambda _: self.load_data())
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id=='collector-settings':
+            from tokonomy.settings import CollectorSettings
+            self.push_screen(CollectorSettings(self.data_dir))

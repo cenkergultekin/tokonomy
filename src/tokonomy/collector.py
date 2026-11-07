@@ -21,23 +21,27 @@ def running(directory):
             return True
 
 
-def control(directory, action):
+def control(directory, action, quiet=False):
+    report = (lambda *args: None) if quiet else print
     if action == 'status':
-        print('Running' if running(directory) else 'Stopped')
+        report('Running' if running(directory) else 'Stopped')
         path=directory/'collector-status.json'
-        if path.exists(): print(path.read_text(encoding='utf-8'))
+        if path.exists(): report(path.read_text(encoding='utf-8'))
     elif action == 'stop':
         (directory/'collector.stop').touch()
-        print('Stop requested; collector exits after its current cycle.')
+        report('Stop requested; collector exits after its current cycle.')
     elif action == 'start':
-        if running(directory): print('Already running'); return
+        if running(directory): report('Already running'); return
         (directory/'collector.stop').unlink(missing_ok=True)
         pythonw=Path(sys.executable).with_name('pythonw.exe')
         subprocess.Popen([str(pythonw), '-m','tokonomy','collector','run'],
                          stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
                          creationflags=subprocess.CREATE_NO_WINDOW,close_fds=True)
-        print('Collector starting. Use tokonomy collector status.')
+        report('Collector starting. Use tokonomy collector status.')
     elif action == 'run':
+        # A previous explicit stop must not disable a future login launch.
+        if not running(directory):
+            (directory/'collector.stop').unlink(missing_ok=True)
         run(directory)
 
 
