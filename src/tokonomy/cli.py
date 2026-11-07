@@ -86,6 +86,18 @@ def collect(data_dir: Path, store: Store | None = None, force: bool = False, qui
             state='Unavailable'; detail=type(error).__name__
         store.connection.execute('INSERT OR REPLACE INTO source_health VALUES (?,?,?,?)',('hermes',datetime.now(timezone.utc).isoformat(),state,detail))
         if not quiet: print(f'Hermes: {state} / {detail}')
+        from tokonomy.sources import desktop
+        for source, path, adapter, coverage in [
+            ('opencode', home/'.local/share/opencode/opencode.db', desktop.opencode, 'Session totals only'),
+            ('cursor', Path(os.environ.get('APPDATA',home/'AppData/Roaming'))/'Cursor/User/globalStorage/state.vscdb', desktop.cursor, 'Session metadata only; tokens unavailable')]:
+            try:
+                count=adapter(store,path)
+                state='Imported' if path.exists() else 'Not found'
+                detail=f'{count} sessions; {coverage}'
+            except (OSError,ValueError,__import__('sqlite3').Error) as error:
+                state='Unavailable'; detail=type(error).__name__
+            store.connection.execute('INSERT OR REPLACE INTO source_health VALUES (?,?,?,?)',(source,datetime.now(timezone.utc).isoformat(),state,detail))
+            if not quiet: print(f'{source}: {state} / {detail}')
         if not quiet: print(f"Indexed sessions: {store.count_sessions()}")
         if not quiet: print(f"Database: {data_dir / 'tokonomy.sqlite3'}")
     finally:

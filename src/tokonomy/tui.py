@@ -71,7 +71,7 @@ class TokonomyApp(App):
                     yield Static('', id='graphs')
                     yield DataTable(id='limits', cursor_type='row')
             with TabPane('2 Sessions', id='sessions'):
-                yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex'),('Hermes','hermes')], value='all', allow_blank=False, id='provider-filter')
+                yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex'),('Hermes','hermes'),('OpenCode','opencode'),('Cursor','cursor')], value='all', allow_blank=False, id='provider-filter')
                 yield Input(placeholder='Filter by provider, model or session IDâ€¦', id='search')
                 yield DataTable(id='session-table', cursor_type='row')
             with TabPane('3 Models', id='models'):
@@ -117,10 +117,12 @@ class TokonomyApp(App):
         try:
             c = store.connection
             health=self.query_one('#sources-table', DataTable); health.clear()
-            for source in ['codex','claude-code','hermes']:
+            for source in ['codex','claude-code','hermes','opencode','cursor']:
                 sessions=c.execute('SELECT COUNT(*) FROM sessions WHERE source=?',(source,)).fetchone()[0]
                 events=c.execute('SELECT COUNT(*) FROM usage_events WHERE source=?',(source,)).fetchone()[0]
-                health.add_row(source,str(sessions),str(events),'Timestamped events' if events else 'Session totals only' if sessions else 'No imported data')
+                state=c.execute('SELECT status,detail FROM source_health WHERE source=?',(source,)).fetchone()
+                coverage=(' / '.join(state)) if state else 'Timestamped events' if events else 'No imported data'
+                health.add_row(source,str(sessions),str(events),coverage)
             projects=self.query_one('#projects-table', DataTable); projects.clear()
             if c.execute("SELECT 1 FROM sqlite_master WHERE name='session_context'").fetchone():
                 for r in c.execute("SELECT COALESCE(x.project,'Unknown'),COUNT(*),AVG(s.input_tokens),AVG(s.output_tokens),AVG((SELECT COUNT(*) FROM session_context child WHERE child.source=s.source AND child.parent_id=s.session_id)),SUM((SELECT COUNT(*) FROM session_events e WHERE e.source=s.source AND e.session_id=s.session_id)) FROM sessions s LEFT JOIN session_context x ON x.source=s.source AND x.session_id=s.session_id GROUP BY x.project"):

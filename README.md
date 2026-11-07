@@ -63,3 +63,7 @@ MIT. See [LICENSE](LICENSE).
 `tokonomy group assign --name "feature-a" --source codex --session SESSION_ID` assigns an explicit work group. Reassignment moves the session; `group remove --source codex --session SESSION_ID` removes membership. `group list` summarizes groups. Assignments survive rescans. Intent similarity is not inferred from transcript contents.
 
 The Projects tab groups observed working directories by local Git common directory, combining worktrees when available. Session details (Enter) show source files, token event IDs, recorded child agents and compaction observations. Counts describe recorded events, not all possible activity. `tokonomy resets` lists quota drops; `--mark ID --reason user-credit` labels a transition as user reported, without redeeming a provider reset credit.
+
+## Source coverage
+
+Codex and Claude provide timestamped usage events. Hermes and OpenCode v2 are imported from read-only SQLite session counters; these totals are not allocated to dates or attributed to the last model as if all requests used it. Cursor imports allowlisted composer headers only: token values remain unknown. No credentials or message contents are selected by these database adapters. Sources shows imported counts and coverage. Antigravity/Gemini integration remains under investigation.
