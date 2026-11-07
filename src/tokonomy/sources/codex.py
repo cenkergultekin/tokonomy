@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 
-from tokonomy.models import ModelUsage, Session, UsageEvent
+from tokonomy.models import LimitSnapshot, ModelUsage, Session, UsageEvent
 from tokonomy.sources.jsonl import iter_jsonl
 
 
@@ -19,8 +20,11 @@ def read_session(path: Path) -> Session | None:
     current_model = None
     models_by_turn: dict[str, str] = {}
     usage_events: list[UsageEvent] = []
+    limit_snapshots: list[LimitSnapshot] = []
     seen_responses: set[str] = set()
+    line_number = 0
     for record in iter_jsonl(path):
+        line_number += 1
         kind = record.get("type")
         payload = record.get("payload")
         if not isinstance(payload, dict):
@@ -65,6 +69,33 @@ def read_session(path: Path) -> Session | None:
                         cached_input_tokens=usage.get("cached_input_tokens") if isinstance(usage.get("cached_input_tokens"), int) else None,
                         cache_write_tokens=usage.get("cache_write_input_tokens") if isinstance(usage.get("cache_write_input_tokens"), int) else None,
                     ))
+        elif kind == "event_msg" and payload.get("type") == "token_count":
+            timestamp = _timestamp(record.get("timestamp"))
+            limits = payload.get("rate_limits")
+            if timestamp and isinstance(limits, dict):
+                path_key = hashlib.sha256(str(path).encode("utf-8")).hexdigest()
+                for slot in ("primary", "secondary"):
+                    window = limits.get(slot)
+                    if not isinstance(window, dict):
+                        continue
+                    minutes = window.get("window_minutes")
+                    used = window.get("used_percent")
+                    reset_raw = window.get("resets_at")
+                    if not isinstance(minutes, int) or not isinstance(used, (int, float)):
+                        continue
+                    resets_at = datetime.fromtimestamp(reset_raw, timezone.utc).isoformat() if isinstance(reset_raw, (int, float)) else None
+                    duration = minutes * 60
+                    limit_snapshots.append(LimitSnapshot(
+                        provider="codex",
+                        limit_id="codex",
+                        plan_type=None,
+                        window_seconds=duration,
+                        used_percent=float(used),
+                        captured_at=timestamp,
+                        resets_at=resets_at,
+                        exhausted=used >= 100,
+                        source_event_id=f"rollout:{path_key}:{line_number}:{duration}",
+                    ))
         stamp = record.get("timestamp")
         if isinstance(stamp, str):
             last_seen_at = _timestamp(stamp) or last_seen_at
@@ -92,6 +123,7 @@ def read_session(path: Path) -> Session | None:
             for name, values in by_model.items()
         ),
         usage_events=tuple(usage_events),
+        limit_snapshots=tuple(limit_snapshots),
     )
 
 

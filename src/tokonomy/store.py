@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS limit_snapshots (
   limit_id TEXT NOT NULL,
   plan_type TEXT,
   window_seconds INTEGER NOT NULL,
-  used_percent INTEGER NOT NULL,
+  used_percent REAL NOT NULL,
   captured_at TEXT NOT NULL,
   resets_at TEXT,
   exhausted INTEGER NOT NULL,
@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS limit_snapshots (
   session_count INTEGER,
   sessions_with_usage INTEGER,
   average_input_tokens_per_session REAL,
-  average_output_tokens_per_session REAL
+  average_output_tokens_per_session REAL,
+  source_event_id TEXT
 );
 CREATE INDEX IF NOT EXISTS limit_snapshots_window ON limit_snapshots(provider, limit_id, window_seconds, captured_at);
 CREATE TABLE IF NOT EXISTS limit_events (
@@ -109,6 +110,10 @@ class Store:
         ):
             if name not in snapshot_columns:
                 self.connection.execute(f"ALTER TABLE limit_snapshots ADD COLUMN {name} {declaration}")
+        if "source_event_id" not in snapshot_columns:
+            self.connection.execute("ALTER TABLE limit_snapshots ADD COLUMN source_event_id TEXT")
+        self.connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS limit_snapshots_source_event ON limit_snapshots(provider, source_event_id) WHERE source_event_id IS NOT NULL")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS limit_snapshots_window ON limit_snapshots(provider, limit_id, window_seconds, captured_at)")
         event_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(limit_events)")}
         if "period_key" not in event_columns:
             self.connection.execute("ALTER TABLE limit_events RENAME TO limit_events_legacy")
@@ -181,6 +186,8 @@ class Store:
                  event.model, event.input_tokens, event.output_tokens,
                  event.cached_input_tokens, event.cache_write_tokens),
             )
+        for snapshot in session.limit_snapshots:
+            self.save_limit_snapshot(snapshot)
 
     def upsert_model_usage(self, source: str, session_id: str, usage: ModelUsage) -> None:
         self.connection.execute(
@@ -213,10 +220,10 @@ class Store:
               provider, limit_id, plan_type, window_seconds, used_percent,
               captured_at, resets_at, exhausted, input_tokens, output_tokens, session_count,
               sessions_with_usage, average_input_tokens_per_session,
-              average_output_tokens_per_session
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+              average_output_tokens_per_session, source_event_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             row + (snapshot.sessions_with_usage, snapshot.average_input_tokens_per_session,
-                   snapshot.average_output_tokens_per_session),
+                   snapshot.average_output_tokens_per_session, snapshot.source_event_id),
         )
         if snapshot.exhausted:
             self.connection.execute(

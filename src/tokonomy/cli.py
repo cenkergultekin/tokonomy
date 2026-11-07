@@ -72,6 +72,62 @@ def watch_limits(data_dir: Path, interval: int) -> int:
         store.close()
 
 
+def show_history(data_dir: Path, show_all: bool) -> int:
+    store = Store(data_dir / "tokonomy.sqlite3")
+    try:
+        rows = store.connection.execute(
+            """SELECT provider, limit_id, window_seconds, resets_at,
+                      MIN(captured_at) AS first_seen, MAX(captured_at) AS last_seen,
+                      MAX(used_percent) AS peak_percent,
+                      (SELECT s.used_percent FROM limit_snapshots s
+                       WHERE s.provider = grouped.provider AND s.limit_id = grouped.limit_id
+                         AND s.window_seconds = grouped.window_seconds
+                         AND s.resets_at = grouped.resets_at
+                       ORDER BY s.captured_at ASC LIMIT 1) AS first_percent,
+                      (SELECT s.used_percent FROM limit_snapshots s
+                       WHERE s.provider = grouped.provider AND s.limit_id = grouped.limit_id
+                         AND s.window_seconds = grouped.window_seconds
+                         AND s.resets_at = grouped.resets_at
+                       ORDER BY s.captured_at DESC LIMIT 1) AS last_percent,
+                      (SELECT s.captured_at FROM limit_snapshots s
+                       WHERE s.provider = grouped.provider AND s.limit_id = grouped.limit_id
+                         AND s.window_seconds = grouped.window_seconds
+                         AND s.resets_at = grouped.resets_at
+                       ORDER BY s.captured_at DESC LIMIT 1) AS observed_at,
+                      COUNT(*) AS observations
+               FROM limit_snapshots AS grouped
+               WHERE resets_at IS NOT NULL
+               GROUP BY provider, limit_id, window_seconds, resets_at
+               ORDER BY observed_at DESC, provider, window_seconds"""
+        ).fetchall()
+        if not show_all:
+            rows = rows[:20]
+        if not rows:
+            print("No historical limit snapshots. Run `tokonomy scan --force` and `tokonomy watch-limits`.")
+            return 0
+        print("provider  window  reset (UTC)             span UTC       start-end  min/max/last  observations  local input/output tokens  sessions")
+        for row in rows:
+            from datetime import datetime, timedelta
+            reset_at = datetime.fromisoformat(row["resets_at"])
+            period_start = (reset_at - timedelta(seconds=row["window_seconds"])).isoformat()
+            totals = store.connection.execute(
+                """SELECT SUM(input_tokens), SUM(output_tokens), COUNT(DISTINCT session_id)
+                   FROM usage_events WHERE source = ? AND occurred_at >= ? AND occurred_at <= ?""",
+                (row["provider"], period_start, row["observed_at"]),
+            ).fetchone()
+            window = "5h" if row["window_seconds"] == 18000 else "7d" if row["window_seconds"] == 604800 else f"{row['window_seconds']}s"
+            reset = row["resets_at"].replace("T", " ").split("+", 1)[0]
+            first = row["first_seen"].replace("T", " ")[5:16]
+            last = row["last_seen"].replace("T", " ")[5:16]
+            percent = f"{row['first_percent']:g}/{row['peak_percent']:g}/{row['last_percent']:g}%"
+            tokens = f"{totals[0] or 0:,}/{totals[1] or 0:,}"
+            sessions = totals[2]
+            print(f"{row['provider']:<9} {window:<6}  {reset:<22} {first}-{last}  {percent:>12}  {row['observations']:>12,}  {tokens:>26}  {sessions if sessions is not None else 'unknown'}")
+        return 0
+    finally:
+        store.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tokonomy")
     parser.add_argument("--version", action="version", version=__version__)
@@ -82,6 +138,9 @@ def main() -> int:
     watch_parser = subparsers.add_parser("watch-limits", help="poll and save Codex plan limit snapshots")
     watch_parser.add_argument("--data-dir", type=Path, default=default_data_dir())
     watch_parser.add_argument("--interval", type=int, default=120, help="poll interval in seconds (minimum 30)")
+    history_parser = subparsers.add_parser("history", help="show observed historical provider limit periods")
+    history_parser.add_argument("--data-dir", type=Path, default=default_data_dir())
+    history_parser.add_argument("--all", action="store_true", help="show all recorded periods")
     args = parser.parse_args()
     if args.command == "scan":
         return collect(args.data_dir, force=args.force)
@@ -89,4 +148,6 @@ def main() -> int:
         if args.interval < 30:
             parser.error("--interval must be at least 30 seconds")
         return watch_limits(args.data_dir, args.interval)
+    if args.command == "history":
+        return show_history(args.data_dir, args.all)
     return 2

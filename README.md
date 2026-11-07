@@ -21,6 +21,7 @@ py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e .
 tokonomy scan
+tokonomy history --all
 tokonomy watch-limits --interval 120
 ```
 
@@ -29,6 +30,8 @@ The default database is `%LOCALAPPDATA%\tokonomy\tokonomy.sqlite3`. `watch-limit
 ## Data model
 
 The `sessions` table contains the source, source session ID, timestamps, and source file path. Exact token counts are stored in `model_usage` where the client exposes them. Codex per-response token deltas are also stored as timestamped `usage_events`, allowing exact local token totals for a 5-hour or 7-day interval. Claude Code's cumulative `cost-state` token snapshot is retained in session summaries; its cost value is ignored. A limit snapshot records plan type, source limit bucket, window duration, used percentage, and source reset time. On exhaustion, it also captures locally observed tokens, session count, and average tokens per session within that window. This describes local-client activity and does not include other devices or Claude.ai/ChatGPT web usage.
+
+`tokonomy scan --force` also imports Codex's historical `token_count` rate-limit observations from local rollout files. `tokonomy history` groups them by the reset timestamp the provider recorded, shows latest/peak observed percentage and observation count per period, plus exact local Codex token deltas in that interval. `--all` shows the full available history. Historical observations have no plan type in the source records. A reset period is only listed when a source observation includes its reset timestamp; missed periods cannot be reconstructed. Current checked local history begins 2026-09-08. Claude session totals can be historical, but Claude quota/reset history is not exposed by its local structured records.
 
 Codex exposes this through its official local app-server method `account/rateLimits/read`; the watcher runs it with the existing Codex CLI login and saves a snapshot every poll. The `primary` and `secondary` labels are not assumed to mean 5h and 7d; the source window duration is used. Read more in [Codex usage limits](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan) and the [Codex rate-limit protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs).
 

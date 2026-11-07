@@ -17,6 +17,7 @@ class Session:
     source_file: str | None = None
     model_usage: tuple["ModelUsage", ...] = ()
     usage_events: tuple["UsageEvent", ...] = ()
+    limit_snapshots: tuple["LimitSnapshot", ...] = ()
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,7 @@ class LimitSnapshot:
     limit_id: str
     plan_type: str | None
     window_seconds: int
-    used_percent: int
+    used_percent: float
     captured_at: str
     resets_at: str | None = None
     exhausted: bool = False
@@ -66,3 +67,4 @@ class LimitSnapshot:
     sessions_with_usage: int | None = None
     average_input_tokens_per_session: float | None = None
     average_output_tokens_per_session: float | None = None
+    source_event_id: str | None = None
