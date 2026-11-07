@@ -1,7 +1,7 @@
 from datetime import datetime
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Header, Footer, Static, TabbedContent, TabPane, DataTable, Input, Select, Button
+from textual.widgets import Static, TabbedContent, TabPane, DataTable, Input, Select, Button
 from textual.containers import Horizontal, VerticalScroll
 from tokonomy import metrics
 from tokonomy.charts import analytics, activity
@@ -17,38 +17,40 @@ def number(value):
 class TokonomyApp(App):
     ENABLE_COMMAND_PALETTE = False
     TITLE = 'tokonomy'
-    SUB_TITLE = 'your local AI usage observatory'
+    SUB_TITLE = ''
     CSS = """
-    Screen { background: ansi_default; color: #d0d0d0; }
-    #brand { height: 15; padding: 1 3; color: #82c783; }
+    Screen { background: #101c26; color: #f3e9da; }
+    #brand { height: 5; padding: 1 3; color: #e5b38a; }
     #metrics { height: 4; margin: 0 3 1 3; }
-    .card { width: 1fr; border-left: solid #426b43; padding: 0 1; margin-right: 1; background: transparent; color: #919191; }
+    .card { width: 1fr; padding: 0 1; margin-right: 1; background: transparent; color: #a7bac2; }
     TabbedContent { margin: 0 2; }
     TabPane { padding: 1; }
     Tabs { background: transparent; }
-    Tab { background: transparent; color: #888888; }
-    Tab:hover { background: #202620; color: #a9d9aa; }
-    Tab.-active { background: transparent; color: #82c783; text-style: bold; }
-    Underline { background: transparent; color: #426b43; }
-    Underline > .underline--bar { background: transparent; color: #82c783; }
+    Tab { background: transparent; color: #a7bac2; }
+    Tab:hover { background: #233944; color: #f1cba9; }
+    Tab.-active { background: transparent; color: #e5b38a; text-style: bold; }
+    Underline { background: transparent; color: #436574; }
+    Underline > .underline--bar { background: transparent; color: #e5b38a; }
     ContentSwitcher { background: transparent; }
-    DataTable { height: 1fr; background: transparent; scrollbar-color: #426b43; scrollbar-background: #171717; }
-    DataTable > .datatable--header { background: #191d19; color: #a9b9a9; text-style: bold; }
-    DataTable > .datatable--cursor { background: #263a27; color: #d4f0d5; }
-    DataTable > .datatable--hover { background: #1d271e; }
-    Input { margin-bottom: 1; border: round #3b443b; background: transparent; }
-    Input:focus { border: round #82c783; }
+    DataTable { height: 1fr; background: transparent; scrollbar-color: #436574; scrollbar-background: #101c26; }
+    DataTable > .datatable--header { background: #1b303b; color: #b7cbd1; text-style: bold; }
+    DataTable > .datatable--cursor { background: #335463; color: #fff0dc; }
+    DataTable > .datatable--hover { background: #263e4b; }
+    Input { margin-bottom: 1; border: round #436574; background: transparent; }
+    Input:focus { border: round #e5b38a; }
+    Select { background: #1b303b; border: tall #436574; }
+    Button { background: #1b303b; color: #e5b38a; }
     #limits { height: 7; }
     #graphs { height: auto; padding: 1 0; }
     #activity { height: auto; }
     #history-table { height: 20; }
-    #status { height: 1; padding: 0 3; color: #888888; }
-    Footer { background: transparent; color: #999999; }
-    Footer > .footer--key { background: transparent; color: #82c783; }
+    #status { height: 1; padding: 0 3; color: #a7bac2; }
+    Footer { background: transparent; color: #a7bac2; }
+    Footer > .footer--key { background: transparent; color: #e5b38a; }
     Footer > .footer--description { background: transparent; }
-    Footer > .footer--highlight { background: #263a27; color: #d4f0d5; }
+    Footer > .footer--highlight { background: #335463; color: #fff0dc; }
     """
-    BINDINGS = [Binding('space', 'orbit', 'Pause', show=False), Binding('q', 'quit', 'Quit'), Binding('r', 'reload', 'Refresh'),
+    BINDINGS = [Binding('q', 'quit', 'Quit'), Binding('r', 'reload', 'Refresh'),
                 Binding('left', 'previous', 'Tabs', priority=True),
                 Binding('right', 'next', 'Tabs', priority=True, show=False),
                 Binding('1', 'page(0)', 'Overview', show=False), Binding('2', 'page(1)', 'Sessions', show=False),
@@ -68,28 +70,28 @@ class TokonomyApp(App):
             yield Static('', id='output', classes='card')
             yield Static('', id='cost', classes='card')
         with TabbedContent(initial='overview'):
-            with TabPane('1 Overview', id='overview'):
+            with TabPane('Overview', id='overview'):
                 with VerticalScroll():
                     yield Static('', id='graphs')
                     yield DataTable(id='limits', cursor_type='row')
-            with TabPane('2 Sessions', id='sessions'):
+            with TabPane('Sessions', id='sessions'):
                 yield Select([('All providers','all'),('Claude Code','claude-code'),('Codex','codex'),('Hermes','hermes'),('OpenCode','opencode'),('Cursor','cursor')], value='all', allow_blank=False, id='provider-filter')
                 yield Select([('Recent activity','recent'),('Largest input','input'),('Largest output','output'),('Largest cache read','cache')],value='recent',allow_blank=False,id='sort-order')
                 yield Input(placeholder='Filter by provider, model, project or session ID…', id='search')
                 yield DataTable(id='session-table', cursor_type='row')
-            with TabPane('3 Models', id='models'):
+            with TabPane('Models', id='models'):
                 yield DataTable(id='model-table', cursor_type='row')
-            with TabPane('4 History', id='history'):
+            with TabPane('History', id='history'):
                 with VerticalScroll():
                     yield Static('', id='activity')
                     yield DataTable(id='history-table', cursor_type='row')
-            with TabPane('5 Projects', id='projects'):
+            with TabPane('Projects', id='projects'):
                 yield DataTable(id='projects-table', cursor_type='row')
-            with TabPane('6 Sources', id='sources'):
+            with TabPane('Sources', id='sources'):
                 yield Button('Collector settings', id='collector-settings')
                 yield DataTable(id='sources-table', cursor_type='row')
         yield Static('', id='status')
-        yield Footer()
+
 
     def on_mount(self):
         for table, columns in [('limits', ['Provider', 'Window', 'Used', 'Reset (UTC)', 'Observed (UTC)', 'State']),
@@ -108,10 +110,6 @@ class TokonomyApp(App):
     def shift(self, delta):
         tabs = self.query_one(TabbedContent)
         tabs.active = self.pages[(self.pages.index(tabs.active)+delta) % len(self.pages)]
-
-    def action_orbit(self):
-        orbit = self.query_one(TokenOrbit)
-        orbit.paused = not orbit.paused
 
     def action_previous(self): self.shift(-1)
     def action_next(self): self.shift(1)
@@ -137,13 +135,13 @@ class TokonomyApp(App):
             self.query_one('#activity', Static).update(activity(c))
             summary = metrics.summary(c)
             for key, label, value in [
-                ('count', 'SESSIONS', f"{summary['sessions']:,}"),
-                ('uncached', 'UNCACHED IN', compact(summary['uncached'])),
-                ('cache', 'CACHE HIT', pct(summary['cache_hit'])),
-                ('output', 'OUTPUT', compact(summary['output'])),
-                ('cost', 'EST. SPEND', money(summary['cost'])),
+                ('count', 'Sessions', f"{summary['sessions']:,}"),
+                ('uncached', 'Uncached input', compact(summary['uncached'])),
+                ('cache', 'Cache hit', pct(summary['cache_hit'])),
+                ('output', 'Output', compact(summary['output'])),
+                ('cost', 'Est. spend', money(summary['cost'])),
             ]:
-                self.query_one('#'+key, Static).update(f'{label}\n[bold #82c783]{value}[/]')
+                self.query_one('#'+key, Static).update(f'[bold #f3e9da]{value}[/]\n{label}')
             self.session_projects={(r[0],r[1]):r[2] or 'Unknown' for r in c.execute('SELECT source,session_id,project FROM session_context')}
             self.session_groups={(r[0],r[1]):r[2] for r in c.execute('SELECT source,session_id,name FROM work_assignments')}
             self.session_rows = [tuple(r) for r in c.execute('SELECT source, session_id, model, input_tokens, output_tokens, last_seen_at, cached_input_tokens, cache_write_tokens FROM sessions ORDER BY last_seen_at DESC')]

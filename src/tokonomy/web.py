@@ -1,11 +1,12 @@
 ﻿"""Localhost dashboard and static HTML export.
 
-The page is a data view, not a landing page: flat charcoal, one accent, no
-cards, no gradients, no marketing copy. Every number carries its source.
+A textured midnight palette keeps the data view quiet and readable.
+Every number retains its source and uncertainty.
 """
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import webbrowser
@@ -14,32 +15,35 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from tokonomy import __version__, metrics
+from tokonomy import metrics
+from tokonomy.brand import LOGO
 from tokonomy.formatting import compact, money, pct, relative_reset, short_date, short_time
 
-REPO_URL = "https://github.com/cenkergultekin/tokonomy"
+FONT_FACE = '@font-face { font-family: "Outfit"; src: url(data:font/ttf;base64,' + base64.b64encode((Path(__file__).parent / "assets" / "outfit.ttf").read_bytes()).decode("ascii") + ') format("truetype"); font-weight: 100 900; font-display: swap; }'
 
-STYLE = """
-@font-face { font-family: "DM Sans"; src: local("DM Sans"); font-weight: 400 700; }
+STYLE = FONT_FACE + """
 :root {
-  --ink: #262626;
-  --paper: #edece6;
-  --muted: #94948c;
-  --dim: #73736c;
+  --ink: #101c26;
+  --paper: #f3e9da;
+  --muted: #b1bfc5;
+  --dim: #9aafb8;
   --line: rgba(237, 236, 230, 0.16);
   --line-soft: rgba(237, 236, 230, 0.09);
-  --green: #a7c59a;
+  --green: #e5b38a;
   --amber: #d6a24a;
   --red: #d47b6a;
   --mono: "DM Mono", "Cascadia Code", Consolas, monospace;
 }
 * { box-sizing: border-box; }
+.head, .hero, .split, .two { min-width: 0; }
+.hero > *, .split > *, .two > * { min-width: 0; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
-  background: var(--ink);
+  background: radial-gradient(ellipse at 0% 0%, #284c55 0%, transparent 48%), radial-gradient(ellipse at 100% 38%, #45382f 0%, transparent 48%), linear-gradient(150deg, #14252e, #101923 65%, #1c292c);
+  background-attachment: fixed;
   color: var(--paper);
-  font-family: "DM Sans", "Segoe UI", sans-serif;
+  font-family: "Outfit", "Bahnschrift", "Trebuchet MS", sans-serif;
   font-size: 15px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
@@ -55,26 +59,29 @@ body::after {
 }
 a { color: inherit; text-decoration: none; }
 a:hover { color: var(--green); }
+.word svg { width: 34px; height: 34px; color: var(--green); flex-shrink: 0; }
+a:focus-visible { outline: 2px solid var(--green); outline-offset: 6px; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
 
 header { padding: 24px 0; border-bottom: 1px solid var(--line-soft); }
-.head { display: flex; align-items: baseline; gap: 30px; }
-.word { font-size: 19px; font-weight: 700; letter-spacing: -.03em; }
+.head { display: flex; align-items: center; gap: 30px; }
+.word { display: inline-flex; align-items: center; gap: 12px; font-size: 23px; font-weight: 700; letter-spacing: -.03em; }
 .head nav { margin-left: auto; display: flex; gap: 22px; color: var(--muted); font-size: 12px; }
 .head nav a:hover { color: var(--paper); }
 
 .topline { display: flex; justify-content: space-between; gap: 20px; padding: 28px 0 10px; color: var(--dim); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
 
-.kpis { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.kpis { margin-top: 44px; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .kpi { padding: 20px 22px 22px 0; }
 .kpi + .kpi { border-left: 1px solid var(--line-soft); padding-left: 22px; }
 .kpi span { display: block; color: var(--dim); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; }
-.kpi b { display: block; margin: 10px 0 3px; font-size: 34px; line-height: .95; letter-spacing: -.055em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi b { display: block; margin: 10px 0 3px; font-size: clamp(30px, 3.5vw, 48px); line-height: .95; letter-spacing: -.055em; font-weight: 700; font-variant-numeric: tabular-nums; }
 .kpi small { color: var(--muted); font-size: 11px; }
 .kpi .green { color: var(--green); }
 
-section { padding-top: 68px; scroll-margin-top: 20px; }
-.sechead { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 22px; }
+main { padding-bottom: 72px !important; }
+section { padding-top: 52px; scroll-margin-top: 20px; }
+.sechead { flex-wrap: wrap; display: flex; align-items: baseline; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 22px; }
 .sechead h2 { margin: 0; font-size: 20px; letter-spacing: -.035em; font-weight: 700; }
 .sechead span { color: var(--dim); font-size: 11.5px; }
 
@@ -99,6 +106,7 @@ section { padding-top: 68px; scroll-margin-top: 20px; }
 .quota p.ok { color: var(--green); }
 
 .two { display: grid; grid-template-columns: 1.3fr .7fr; gap: 56px; }
+.table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th { color: var(--dim); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 500; text-align: left; padding: 0 10px 8px 0; border-bottom: 1px solid var(--line); }
 td { padding: 10px 10px 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; vertical-align: baseline; }
@@ -139,6 +147,8 @@ footer { margin-top: 84px; border-top: 1px solid var(--line-soft); padding: 22px
   .source + .source { border-left: 0; padding-left: 0; }
   .head nav a:not(:last-child) { display: none; }
 }
+@media (max-width: 520px) { .wrap { padding: 0 20px; } .head nav { gap: 12px; } .kpi { padding-right: 8px; } .kpi:nth-child(odd) { padding-left: 0; } .sources { grid-template-columns: 1fr; } td, th { white-space: nowrap; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 @media print { body::after { display: none; } }
 """
 
@@ -190,8 +200,8 @@ def _chart(days: list[dict]) -> str:
     return f"""
 <svg class="chart" viewBox="0 0 {width} {height}" role="img" aria-label="Daily uncached input">
   {''.join(grid)}
-  <path d="{area}" fill="#a7c59a" fill-opacity="0.10"/>
-  <polyline points="{' '.join(f'{px:.1f},{py:.1f}' for px, py in uncached)}" fill="none" stroke="#a7c59a" stroke-width="1.6"/>
+  <path d="{area}" fill="#e5b38a" fill-opacity="0.10"/>
+  <polyline points="{' '.join(f'{px:.1f},{py:.1f}' for px, py in uncached)}" fill="none" stroke="#e5b38a" stroke-width="1.6"/>
   {''.join(labels)}
   {''.join(hotspots)}
 </svg>"""
@@ -313,7 +323,6 @@ def render_dashboard(store, generated_at: datetime | None = None) -> str:
     sessions_list = metrics.recent_sessions(connection, limit=6)
     coverage = metrics.coverage(connection)
     quota_markup = "".join(_quota(item) for item in quotas) or '<div class="empty">No quota snapshots. Run tokonomy watch-limits.</div>'
-    stamp = generated_at.strftime("%Y-%m-%d %H:%M UTC")
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -325,56 +334,53 @@ def render_dashboard(store, generated_at: datetime | None = None) -> str:
 </head>
 <body>
 <header><div class="wrap head">
-  <a class="word" href="/">tokonomy</a>
+  <a class="word" href="/">{LOGO}tokonomy</a>
   <nav><a href="#activity">Activity</a><a href="#quota">Quota</a><a href="#projects">Projects</a><a href="#sessions">Sessions</a><a href="#sources">Sources</a></nav>
 </div></header>
 <main class="wrap">
   <div class="kpis">
     <div class="kpi"><span>Sessions</span><b>{data["sessions"]:,}</b><small>{len(data["sources"])} sources</small></div>
-    <div class="kpi"><span>Uncached input</span><b class="green">{compact(data["uncached"])}</b><small>cache excluded</small></div>
+    <div class="kpi"><span>Uncached input</span><b class="green">{compact(data["uncached"])}</b></div>
     <div class="kpi"><span>Cache hit</span><b>{pct(data["cache_hit"])}</b><small>{compact(data["cached"])} cached</small></div>
-    <div class="kpi"><span>Output</span><b>{compact(data["output"])}</b><small>tokens</small></div>
+    <div class="kpi"><span>Output</span><b>{compact(data["output"])}</b></div>
     <div class="kpi"><span>Est. spend</span><b>{money(data["cost"])}</b><small>{pct(data["cost_coverage"])} priceable</small></div>
   </div>
 
   <section id="activity">
-    <div class="sechead"><h2>Activity</h2><span>30 days, UTC · uncached input</span></div>
+    <div class="sechead"><h2>Activity</h2><span>30 days / UTC / uncached input</span></div>
     {_chart(days)}
   </section>
 
   <section id="quota">
-    <div class="sechead"><h2>Quota</h2><span>provider snapshots</span></div>
+    <div class="sechead"><h2>Quota</h2></div>
     <div class="quotas">{quota_markup}</div>
   </section>
 
   <section id="projects" class="two">
     <div>
-      <div class="sechead"><h2>Projects</h2><span>by uncached input</span></div>
-      <table><thead><tr><th>Project</th><th class="num">Sessions</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Cache</th><th class="num">Est.</th></tr></thead>
-      <tbody>{_projects(projects)}</tbody></table>
+      <div class="sechead"><h2>Projects</h2></div>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Usage table"><table><thead><tr><th>Project</th><th class="num">Sessions</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Cache</th><th class="num">Est.</th></tr></thead>
+      <tbody>{_projects(projects)}</tbody></table></div>
     </div>
     <div>
-      <div class="sechead"><h2>Models</h2><span>all time</span></div>
+      <div class="sechead"><h2>Models</h2></div>
       {_models(models)}
     </div>
   </section>
 
   <section id="sessions">
-    <div class="sechead"><h2>Sessions</h2><span>most recent</span></div>
-    <table><thead><tr><th>Source</th><th>Session</th><th>Model</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Est.</th></tr></thead>
-    <tbody>{_sessions(sessions_list)}</tbody></table>
+    <div class="sechead"><h2>Sessions</h2></div>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Usage table"><table><thead><tr><th>Source</th><th>Session</th><th>Model</th><th class="num">Uncached</th><th class="num">Output</th><th class="num">Est.</th></tr></thead>
+    <tbody>{_sessions(sessions_list)}</tbody></table></div>
   </section>
 
   <section id="sources">
-    <div class="sechead"><h2>Sources</h2><span>coverage</span></div>
+    <div class="sechead"><h2>Sources</h2></div>
     <div class="sources">{_sources(coverage["sources"])}</div>
     <p class="note">Missing values stay empty. Cost uses local list prices, not invoices. Event sources: {_esc(", ".join(coverage["event_sources"])) or "none"}.</p>
   </section>
 </main>
-<footer><div class="wrap foot">
-  <span>tokonomy {__version__} · {stamp}</span>
-  <span><a href="{REPO_URL}">GitHub</a> · MIT</span>
-</div></footer>
+
 </body>
 </html>"""
 
@@ -435,7 +441,7 @@ def serve(data_dir: Path, port: int = 8765, open_browser: bool = True) -> int:
                     store.close()
             except Exception as error:
                 body = (
-                    "<html><body style='background:#262626;color:#edece6;font-family:sans-serif;padding:40px'>"
+                    "<html><body style='background:#101c26;color:#f3e9da;font-family:sans-serif;padding:40px'>"
                     f"<h1>tokonomy could not render</h1><pre>{html.escape(str(error))}</pre></body></html>"
                 ).encode("utf-8")
                 content_type = "text/html; charset=utf-8"

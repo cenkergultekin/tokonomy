@@ -7,27 +7,28 @@
 <meta name="description" content="tokonomy reads local AI coding session files and shows uncached token usage, quota burn and project cost.">
 <title>tokonomy</title>
 <style>
-@font-face { font-family: "DM Sans"; src: url("fonts/dm-sans-regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "DM Sans"; src: url("fonts/dm-sans-medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
-@font-face { font-family: "DM Sans"; src: url("fonts/dm-sans-bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Outfit"; src: url("fonts/outfit.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 
 :root {
-  --ink: #262626;
-  --paper: #edece6;
-  --muted: #8d8d86;
+  --ink: #101c26;
+  --paper: #f3e9da;
+  --muted: #b1bfc5;
   --line: rgba(237, 236, 230, 0.16);
-  --green: #a7c59a;
-  --green-ink: #365c3d;
+  --green: #e5b38a;
+  --green-ink: #8d472b;
   --mono: "DM Mono", "Cascadia Code", Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
+.head, .hero, .split, .two { min-width: 0; }
+.hero > *, .split > *, .two > * { min-width: 0; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
-  background: var(--ink);
+  background: radial-gradient(ellipse at 0% 0%, #284c55 0%, transparent 48%), radial-gradient(ellipse at 100% 38%, #45382f 0%, transparent 48%), linear-gradient(150deg, #14252e, #101923 65%, #1c292c);
+  background-attachment: fixed;
   color: var(--paper);
-  font-family: "DM Sans", "Segoe UI", sans-serif;
+  font-family: "Outfit", "Bahnschrift", "Trebuchet MS", sans-serif;
   font-size: 16px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
@@ -43,25 +44,27 @@ body::after {
 }
 a { color: inherit; text-decoration: none; }
 a:hover { color: var(--green); }
+.word svg { width: 34px; height: 34px; color: var(--green); flex-shrink: 0; }
+a:focus-visible { outline: 2px solid var(--green); outline-offset: 6px; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
 
-header { padding: 26px 0; }
-.head { display: flex; align-items: baseline; gap: 28px; }
-.word { font-size: 19px; font-weight: 700; letter-spacing: -.03em; }
+header.wrap { padding-top: 26px; padding-bottom: 26px; }
+.head { display: flex; align-items: center; gap: 28px; }
+.word { display: inline-flex; align-items: center; gap: 12px; font-size: 23px; font-weight: 700; letter-spacing: -.03em; }
 .head nav { margin-left: auto; display: flex; gap: 24px; color: var(--muted); font-size: 13px; }
 .head nav a:hover { color: var(--paper); }
 
-.hero { display: grid; grid-template-columns: 1.08fr .92fr; gap: 56px; align-items: end; padding: 52px 0 0; }
-h1 { margin: 0 0 22px; font-size: clamp(52px, 7.6vw, 104px); line-height: .88; letter-spacing: -.065em; font-weight: 700; }
+.hero { display: grid; grid-template-columns: 1.08fr .92fr; gap: 56px; align-items: end; padding: 64px 0 0; }
+h1 { margin: 0 0 22px; font-size: clamp(52px, 6.8vw, 92px); line-height: .98; letter-spacing: -.045em; font-weight: 700; }
 h1 span { color: var(--green); }
-.lede { margin: 0; max-width: 33ch; color: #c9c8c1; font-size: 17px; line-height: 1.4; }
+.lede { margin: 0; max-width: 33ch; color: #bccbd0; font-size: 17px; line-height: 1.4; }
 .lede a { border-bottom: 1px solid var(--line); }
 .shot { margin: 0; }
-.shot img { display: block; width: 100%; height: 440px; object-fit: cover; object-position: top; }
+.shot img { border-radius: 4px; box-shadow: 0 28px 70px #07131c50; display: block; width: 100%; height: 440px; object-fit: cover; object-position: top; }
 .shot figcaption { color: var(--muted); font-size: 11px; margin-top: 10px; letter-spacing: .02em; }
 
 section { padding: 120px 0 0; }
-.paper { background: var(--paper); color: var(--ink); margin-top: 120px; padding: 96px 0; }
+.paper { background: linear-gradient(115deg, #e5d3b9, #eddfcb 45%, #c2cfc6); color: var(--ink); margin-top: 120px; padding: 96px 0; }
 .paper .muted { color: #6f6f68; }
 .paper a { border-color: rgba(38,38,38,.35); }
 
@@ -70,7 +73,7 @@ section { padding: 120px 0 0; }
 .tag { color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 22px; }
 .paper .tag { color: #77776f; }
 h2 { margin: 0 0 20px; font-size: clamp(34px, 4.2vw, 56px); line-height: .98; letter-spacing: -.05em; font-weight: 700; }
-.body { margin: 0; max-width: 46ch; font-size: 16px; line-height: 1.5; color: #c9c8c1; }
+.body { margin: 0; max-width: 46ch; font-size: 16px; line-height: 1.5; color: #bccbd0; }
 .paper .body { color: #4b4b45; }
 
 .numbers { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 56px; }
@@ -81,7 +84,7 @@ h2 { margin: 0 0 20px; font-size: clamp(34px, 4.2vw, 56px); line-height: .98; le
 .number span { display: block; margin-top: 14px; color: #6f6f68; font-size: 13px; }
 
 .split { display: grid; grid-template-columns: 1fr .9fr; gap: 64px; align-items: start; }
-.split .shot img { height: auto; max-height: 640px; object-fit: cover; object-position: top; }
+.split .shot img { height: auto; max-height: none; object-fit: cover; object-position: top; }
 
 pre { margin: 0; color: #d8d7d0; font: 13px/1.65 var(--mono); white-space: pre-wrap; }
 .paper pre { color: #3d3d38; }
@@ -99,6 +102,7 @@ footer { padding: 42px 0 56px; color: var(--muted); font-size: 12px; }
   .number + .number { border-left: 0; padding-left: 0; border-top: 1px solid rgba(38,38,38,.22); padding-top: 32px; }
   .head nav a:not(:last-child) { display: none; }
 }
+@media (max-width: 520px) { .wrap { padding-left: 22px; padding-right: 22px; } pre { overflow-wrap: anywhere; } .head nav { font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
 </head>
@@ -106,11 +110,10 @@ footer { padding: 42px 0 56px; color: var(--muted); font-size: 12px; }
 
 <header class="wrap">
   <div class="head">
-    <a class="word" href="#top">tokonomy</a>
+    <a class="word" href="#top"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><path d="M32 4 56 18V46L32 60 8 46V18L26 7.5V23L20 26.5V39L32 46 44 39V25L32 18Z"/></svg>tokonomy</a>
     <nav>
       <a href="#cache">Cache</a>
       <a href="#install">Install</a>
-      <a href="https://github.com/cenkergultekin/tokonomy">GitHub</a>
     </nav>
   </div>
 </header>
@@ -122,14 +125,12 @@ footer { padding: 42px 0 56px; color: var(--muted); font-size: 12px; }
       <p class="lede">Reads the session files Codex and Claude Code already write. Keeps token counts, drops prompts. <a href="#install">Install</a>.</p>
     </div>
     <figure class="shot">
-      <img src="dashboard.png" alt="tokonomy dashboard">
-      <figcaption>tokonomy web, demo data</figcaption>
+      <img src="dashboard.png" alt="tokonomy dashboard with demo data">
     </figure>
   </div>
 
   <section class="paper" id="cache">
     <div class="wrap">
-      <div class="tag">Input</div>
       <h2>Cached tokens are not context.</h2>
       <p class="body">Codex counts cache reads as input. That turns 46.6M tokens of real context into a 1.96B headline. tokonomy reads the same records and separates the two.</p>
       <div class="numbers">
@@ -142,20 +143,17 @@ footer { padding: 42px 0 56px; color: var(--muted); font-size: 12px; }
   <section>
     <div class="wrap split">
       <div>
-        <div class="tag">Quota</div>
         <h2>Quota before reset.</h2>
         <p class="body">tokonomy reads the provider's own reset timestamp, measures your recent burn rate, and tells you when the window will run out. If there is not enough history, it says that too.</p>
       </div>
       <figure class="shot">
-        <img src="cli.png" alt="tokonomy CLI quota forecast">
-        <figcaption>tokonomy dashboard, demo data</figcaption>
+        <img src="cli.png" alt="tokonomy CLI quota forecast with demo data">
       </figure>
     </div>
   </section>
 
   <section class="paper" id="install">
     <div class="wrap">
-      <div class="tag">Install</div>
       <h2>One clone.</h2>
       <pre>git clone https://github.com/cenkergultekin/tokonomy.git
 cd tokonomy
@@ -165,21 +163,11 @@ cd tokonomy
 tokonomy web
 claude mcp add tokonomy -- tokonomy mcp</pre>
       </div>
-      <p class="body" style="margin-top:28px;font-size:13px">MIT. Local SQLite. No telemetry. Delete a source with <code>tokonomy delete --source codex --yes</code>.</p>
     </div>
   </section>
 </main>
 
-<footer class="wrap">
-  <div class="foot">
-    <span>tokonomy 0.2.0</span>
-    <nav>
-      <a href="https://github.com/cenkergultekin/tokonomy">GitHub</a>
-      <a href="https://github.com/cenkergultekin/tokonomy/blob/main/README.md">README</a>
-      <a href="https://github.com/cenkergultekin/tokonomy/issues">Issues</a>
-    </nav>
-  </div>
-</footer>
+
 
 </body>
 </html>

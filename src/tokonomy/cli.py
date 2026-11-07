@@ -338,6 +338,11 @@ def _color(text: str, code: str) -> str:
         return text
     if not sys.stdout.isatty() and os.environ.get("TOKONOMY_COLOR") != "always":
         return text
+    palette = {"32": "38;2;229;179;138", "36": "38;2;139;190;194",
+               "35": "38;2;183;203;209", "33": "38;2;237;194;114",
+               "90": "38;2;154;175;184", "1;32": "1;38;2;229;179;138",
+               "1;37": "1;38;2;243;233;218"}
+    code = palette.get(code, code)
     return f"\033[{code}m{text}\033[0m"
 
 
@@ -375,21 +380,25 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
         quotas = metrics.quota(store.connection)
         projects = metrics.projects(store.connection, limit=5)
         width = shutil.get_terminal_size((96, 24)).columns
-        line = "─" * min(84, max(56, width - 4))
-        stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        _safe_print(_color("tokonomy", "1;32") + f"  {stamp}")
-        _safe_print(_color(line, "90"))
-        sessions_text = f"{data['sessions']:,}"
-        _safe_print(
-            f"  SESSIONS {_color(sessions_text, '1;37')}   "
-            f"UNCACHED IN {_color(compact(data['uncached']), '36')}   "
-            f"CACHE HIT {_color(pct(data['cache_hit']), '32')}   "
-            f"OUTPUT {_color(compact(data['output']), '35')}   "
-            f"EST. SPEND {_color(money(data['cost']), '33')}"
-        )
-        _safe_print(_color(f"  {pct(data['cost_coverage'])} priceable · estimates", "90"))
         _safe_print("")
-        _safe_print(_color("  ACTIVITY · last 14 days · uncached input", "1;37"))
+        _safe_print(_color("  ▟▛▜▙", "32"))
+        _safe_print(_color("  ▌ ▐▌", "32") + _color("   tokonomy", "1;37"))
+        _safe_print(_color("  ▜▙▟▛", "32"))
+        _safe_print("")
+        items = [("Sessions", f"{data['sessions']:,}"),
+                 ("Uncached input", compact(data['uncached'])),
+                 ("Cache hit", pct(data['cache_hit'])),
+                 ("Output", compact(data['output'])),
+                 ("Est. spend", money(data['cost']))]
+        columns = max(1, min(5, (width - 4) // 18))
+        for start in range(0, len(items), columns):
+            group = items[start:start + columns]
+            _safe_print("  " + "".join(_color(value.ljust(18), "1;37") for _, value in group))
+            _safe_print("  " + "".join(_color(label.ljust(18), "90") for label, _ in group))
+            _safe_print("")
+        _safe_print(_color(f"  {pct(data['cost_coverage'])} priceable", "90"))
+        _safe_print("")
+        _safe_print(_color("  Activity / 14 days / uncached input", "1;37"))
         values = [row["uncached"] for row in days[:-1]]
         if any(values):
             nonzero = [value for value in values if value]
@@ -397,7 +406,7 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
         else:
             _safe_print("  No dated usage yet. Run `tokonomy scan --force`.")
         _safe_print("")
-        _safe_print(_color("  QUOTA", "1;37"))
+        _safe_print(_color("  Quota", "1;37"))
         if quotas:
             for item in quotas:
                 percent = float(item["used_percent"])
@@ -430,7 +439,7 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
             _safe_print("  No quota snapshots yet. Run `tokonomy watch-limits`.")
         _safe_print("")
         if projects:
-            _safe_print(_color("  TOP PROJECTS", "1;37"))
+            _safe_print(_color("  Projects", "1;37"))
             for project in projects:
                 _safe_print(
                     f"  {project['project'][:34]:<34} {project['sessions']:>4} sessions  "
@@ -438,7 +447,6 @@ def dashboard(data_dir: Path, refresh: bool = True) -> int:
                     f"{money(project['cost']):>9}"
                 )
             _safe_print("")
-        _safe_print(_color(f"  Database  {data_dir / 'tokonomy.sqlite3'}", "90"))
         return 0
     finally:
         store.close()

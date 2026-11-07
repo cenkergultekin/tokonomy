@@ -88,6 +88,7 @@ def ansi_to_html(text: str) -> str:
 
 def cli_markup(data_dir: Path) -> str:
     environment = dict(os.environ)
+    environment.pop("NO_COLOR", None)
     environment["TOKONOMY_COLOR"] = "always"
     environment["PYTHONIOENCODING"] = "utf-8"
     command = [str(PYTHON), "-m", "tokonomy", "dashboard", "--no-refresh", "--data-dir", str(data_dir)]
@@ -106,12 +107,12 @@ def cli_markup(data_dir: Path) -> str:
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
     * {{ box-sizing: border-box; }}
     html, body {{ margin:0; }}
-    body {{ width:1500px; height:960px; background:#262626; color:#d8d7d0; padding:64px 72px; overflow:hidden; }}
+    body {{ width:1500px; height:960px; background:#101c26; color:#f3e9da; padding:64px 72px; overflow:hidden; }}
     body::after {{ content:""; position:fixed; inset:0; pointer-events:none; opacity:.05;
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }}
-    .prompt {{ color:#a7c59a; font:500 14px "Cascadia Code", Consolas, monospace; margin-bottom:18px; }}
-    .prompt span {{ color:#73736c; }}
-    pre {{ margin:0; color:#d8d7d0; font:14px/1.62 "Cascadia Code", "Consolas", monospace; white-space:pre; }}
+    .prompt {{ color:#e5b38a; font:500 14px "Cascadia Code", Consolas, monospace; margin-bottom:18px; }}
+    .prompt span {{ color:#9aafb8; }}
+    pre {{ margin:0; color:#f3e9da; font:14px/1.62 "Cascadia Code", "Consolas", monospace; white-space:pre; }}
     </style></head><body>
     <div class="prompt">~/tokonomy <span>$</span> tokonomy dashboard</div>
     <pre>{output}</pre>
@@ -153,7 +154,7 @@ def main() -> int:
 
         cli_page = temp / "cli.html"
         cli_page.write_text(cli_markup(demo_dir), encoding="utf-8")
-        screenshot(browser, cli_page, DOCS / "cli.png", 1500, 720, 2.0)
+        screenshot(browser, cli_page, DOCS / "cli.png", 1500, 960, 1.4)
         print("wrote docs/cli.png")
 
         dashboard_page = temp / "dashboard.html"

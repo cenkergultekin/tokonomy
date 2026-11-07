@@ -23,7 +23,9 @@ class WebTests(unittest.TestCase):
             self.assertIn("Uncached input", markup)
             self.assertIn("Quota", markup)
             self.assertIn("Sources", markup)
-            self.assertNotIn("CDN", markup)
+            # Embedded font bytes may contain arbitrary words in base64.
+            self.assertNotRegex(markup, r'(?:src=["\x27]|url\(["\x27]?)(?:https?:)?//')
+            self.assertIn("data:font/ttf;base64,", markup)
             self.assertNotIn(r"C:\private", markup)
             self.assertNotIn("transcript.jsonl", markup)
             target = Path(directory) / "dashboard.html"
