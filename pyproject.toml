@@ -39,6 +39,3 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 tokonomy = ["assets/*.ttf", "assets/OFL.txt"]
-
-[tool.setuptools.package-data]
-tokonomy = ["assets/*.ttf", "assets/OFL.txt"]
